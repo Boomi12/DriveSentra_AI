@@ -12,6 +12,8 @@ import authRouter from './routes/auth.js';
 import vehicleRouter from './routes/vehicle.js';
 import mapsRouter from './routes/maps.js';
 import weatherRouter from './routes/weather.js';
+import vehicleIntelRouter from './routes/vehicleRoutes.js';
+import chargingRouter from './routes/charging.js';
 
 // Load environment variables
 dotenv.config();
@@ -43,6 +45,8 @@ app.use('/api/twin', twinRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/vehicle', vehicleRouter);
+app.use('/api/vehicle', vehicleIntelRouter);
+app.use('/api/charging', chargingRouter);
 app.use('/api/maps', mapsRouter);
 app.use('/api/weather', weatherRouter);
 

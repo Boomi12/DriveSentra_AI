@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Calendar, Activity, BrainCircuit, ShieldAlert, Shield, Menu, X, ArrowUpRight, LayoutDashboard, Sliders, LogOut } from 'lucide-react';
+import { Compass, Calendar, Activity, BrainCircuit, ShieldAlert, Shield, Menu, X, ArrowUpRight, LayoutDashboard, Sliders, LogOut, Gauge } from 'lucide-react';
 
-// Import Pages
 import JourneyCompanion from './pages/JourneyCompanion';
 import Itinerary from './pages/Itinerary';
 import DigitalTwin from './pages/DigitalTwin';
@@ -11,6 +10,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import VehicleSetup from './pages/VehicleSetup';
 import Dashboard from './pages/Dashboard';
+import VehicleIntelligence from './pages/VehicleIntelligence';
 
 // Import Protected Route Guard
 import ProtectedRoute from './components/ProtectedRoute';
@@ -87,7 +87,8 @@ const DashboardLayout = ({ children }) => {
     { name: 'Journey Companion', path: '/journey', icon: Compass },
     { name: 'Itinerary Planner', path: '/itinerary', icon: Calendar },
     { name: 'Digital Twin Studio', path: '/digital-twin', icon: Activity },
-    { name: 'AI Agent Panel', path: '/agents', icon: BrainCircuit }
+    { name: 'AI Agent Panel', path: '/agents', icon: BrainCircuit },
+    { name: 'Vehicle Intelligence', path: '/vehicle-intelligence', icon: Gauge }
   ];
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
@@ -307,6 +308,7 @@ const App = () => {
           <Route path="/itinerary" element={<ProtectedRoute><Itinerary /></ProtectedRoute>} />
           <Route path="/digital-twin" element={<ProtectedRoute><DigitalTwin /></ProtectedRoute>} />
           <Route path="/agents" element={<ProtectedRoute><AgentPanel /></ProtectedRoute>} />
+          <Route path="/vehicle-intelligence" element={<ProtectedRoute><VehicleIntelligence /></ProtectedRoute>} />
 
           {/* Root Redirects */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

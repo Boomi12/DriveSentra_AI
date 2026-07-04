@@ -16,6 +16,7 @@ const Dashboard = () => {
   const [sosActive, setSosActive] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
   const [error, setError] = useState('');
+  const [activeTrip, setActiveTrip] = useState(null);
 
   const user = JSON.parse(localStorage.getItem('gd_user') || '{}');
   const tripId = localStorage.getItem('gd_tripId');
@@ -38,13 +39,23 @@ const Dashboard = () => {
       }
     }
 
-    try {
       // 2. Fetch Active Twin Telemetry if tripId exists
       if (tripId) {
         const twinRes = await getTwinState(tripId);
         if (twinRes.success && twinRes.data) {
           setTwin(twinRes.data);
         }
+      }
+      
+      const savedForm = localStorage.getItem('gd_form');
+      if (savedForm) {
+        try {
+          setActiveTrip(JSON.parse(savedForm));
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setActiveTrip(null);
       }
     } catch (err) {
       console.log('Unable to fetch twin state from DB, using fallback defaults.');
@@ -224,6 +235,73 @@ const Dashboard = () => {
           actionText="Cancel distress beacon"
           onActionClick={handleSosTrigger}
         />
+      )}
+
+      {/* Active Trip Summary & Range Warnings */}
+      {activeTrip && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl -ml-5 -mt-5"></div>
+          
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+            <div className="space-y-2 flex-1">
+              <span className="px-2.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md text-[10px] uppercase font-bold tracking-widest">
+                Active Itinerary Summary
+              </span>
+              <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                  <MapPin className="h-4 w-4 text-purple-400" />
+                  <span className="font-extrabold text-white">{activeTrip.source}</span>
+                  <span className="text-slate-500">→</span>
+                  <span className="font-extrabold text-white">{activeTrip.destination}</span>
+                </div>
+                <div className="h-4 w-px bg-slate-800 hidden md:block"></div>
+                <div className="text-xs text-slate-300">
+                  Date: <span className="font-bold text-white">{activeTrip.tripDate}</span> | Departs: <span className="font-bold text-white">{activeTrip.startTime}</span>
+                </div>
+              </div>
+              
+              {twin?.vehicleTwin && (
+                <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-slate-850 text-xs">
+                  <div>
+                    Trip Distance: <span className="font-bold text-white font-mono">{twin.vehicleTwin.tripDistance} km</span>
+                  </div>
+                  <div className="h-4 w-px bg-slate-800"></div>
+                  <div>
+                    Expected Drivetrain: <span className="font-bold text-white">{twin.vehicleTwin.vehicleType}</span>
+                  </div>
+                  <div className="h-4 w-px bg-slate-800"></div>
+                  <div>
+                    Est. Energy Usage: <span className="font-bold text-white font-mono">
+                      {twin.vehicleTwin.estimatedUsage} {isEV ? '%' : 'L'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => navigate('/itinerary')}
+              className="w-full lg:w-auto px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95"
+            >
+              <Navigation className="h-4 w-4" />
+              View Full Itinerary Map
+            </button>
+          </div>
+
+          {twin?.vehicleTwin?.fuelWarning && (
+            <div className="mt-5 p-4 bg-red-950/20 border border-red-500/20 rounded-2xl flex items-start gap-3.5">
+              <div className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0 mt-0.5">
+                <AlertTriangle className="h-5 w-5 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">Drivetrain Range Advisory Warning</h4>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Your current active range ({twin.vehicleTwin.range} km) is insufficient to cover the total trip distance of {twin.vehicleTwin.tripDistance} km without energy depletion. Ensure Refuel/Charging halts suggestors are active and book slots to prevent route breakdown risks.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Grid Layout: Primary Dashboard Metrics */}

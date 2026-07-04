@@ -15,12 +15,16 @@ const DigitalTwinSchema = new mongoose.Schema({
     vehicleType: { type: String, default: 'EV' }, // 'EV', 'Petrol', 'Diesel', 'Hybrid'
     fuelOrBatteryLevel: { type: Number, default: 80 }, // 0 to 100
     range: { type: Number, default: 350 }, // km
-    healthStatus: { type: String, default: 'good' } // 'good', 'warning', 'critical'
+    healthStatus: { type: String, default: 'good' }, // 'good', 'warning', 'critical'
+    tripDistance: { type: Number, default: 0 },
+    estimatedUsage: { type: Number, default: 0 },
+    fuelWarning: { type: Boolean, default: false }
   },
   journeyTwin: {
     weather: { type: String, default: 'clear' }, // 'clear', 'rain', 'fog', 'snow'
     traffic: { type: String, default: 'normal' }, // 'normal', 'heavy', 'light'
     riskLevel: { type: String, default: 'low' }, // 'low', 'medium', 'critical'
+    weatherRisk: { type: String, default: 'low' },
     nextStop: { type: String, default: 'None' }
   },
   updatedAt: { type: Date, default: Date.now }

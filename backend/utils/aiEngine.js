@@ -62,20 +62,36 @@ export function evaluateAgents(twinState, itinerary) {
   let fuelConfidence = 94;
 
   const isEV = vehicleTwin.vehicleType.toUpperCase() === 'EV';
-  if (isEV) {
-    if (vehicleTwin.fuelOrBatteryLevel < 30) {
-      fuelStatus = 'Critical';
-      const evCharger = destData.fuelChargingStops.find(s => s.type === 'EV') || { name: 'Vite Fast Charger' };
-      fuelRec = `Battery level low (${vehicleTwin.fuelOrBatteryLevel}%). Recommending fast-charging stop: "${evCharger.name}" located nearby.`;
-      fuelConfidence = 97;
+  
+  if (vehicleTwin.fuelWarning) {
+    fuelStatus = 'Warning';
+    if (isEV) {
+      const evCharger = (destData.fuelChargingStops || []).find(s => s.type?.toUpperCase() === 'EV') || (destData.fuelChargingStops || [])[0] || { name: 'Tata Power EV Fast Charger' };
+      fuelRec = `Battery range warning! Active trip distance (${vehicleTwin.tripDistance}km) exceeds range (${vehicleTwin.range}km). Suggesting charging top-up at "${evCharger.name}".`;
+    } else {
+      const fuelPump = (destData.fuelChargingStops || []).find(s => s.type?.toUpperCase() === 'FUEL') || (destData.fuelChargingStops || [])[0] || { name: 'HP Refuel Station' };
+      fuelRec = `Fuel range warning! Active trip distance (${vehicleTwin.tripDistance}km) exceeds range (${vehicleTwin.range}km). Suggesting refueling stop at "${fuelPump.name}".`;
     }
+    fuelConfidence = 98;
   } else {
-    // Petrol, Diesel, Hybrid
-    if (vehicleTwin.fuelOrBatteryLevel < 20 || vehicleTwin.range < 120) {
-      fuelStatus = 'Critical';
-      const fuelPump = destData.fuelChargingStops.find(s => s.type === 'Fuel') || { name: 'Highway Fuel Station' };
-      fuelRec = `Fuel level critically low (${vehicleTwin.fuelOrBatteryLevel}% / Range: ${vehicleTwin.range}km). Stop at "${fuelPump.name}" in 12km.`;
-      fuelConfidence = 95;
+    if (isEV) {
+      if (vehicleTwin.fuelOrBatteryLevel < 30) {
+        fuelStatus = 'Critical';
+        const evCharger = (destData.fuelChargingStops || []).find(s => s.type?.toUpperCase() === 'EV') || (destData.fuelChargingStops || [])[0] || { name: 'Tata Power EV Fast Charger' };
+        fuelRec = `Battery level low (${vehicleTwin.fuelOrBatteryLevel}%). Recommending fast-charging stop: "${evCharger.name}" located nearby.`;
+        fuelConfidence = 97;
+      } else {
+        fuelRec = `Battery level (${vehicleTwin.fuelOrBatteryLevel}%) is optimal. Est. usage: ${vehicleTwin.estimatedUsage || 0}% for ${vehicleTwin.tripDistance || 0}km trip.`;
+      }
+    } else {
+      if (vehicleTwin.fuelOrBatteryLevel < 20) {
+        fuelStatus = 'Critical';
+        const fuelPump = (destData.fuelChargingStops || []).find(s => s.type?.toUpperCase() === 'FUEL') || (destData.fuelChargingStops || [])[0] || { name: 'HP Refuel Station' };
+        fuelRec = `Fuel level low (${vehicleTwin.fuelOrBatteryLevel}%). Stop at "${fuelPump.name}" in 12km.`;
+        fuelConfidence = 95;
+      } else {
+        fuelRec = `Fuel level (${vehicleTwin.fuelOrBatteryLevel}%) is optimal. Est. usage: ${vehicleTwin.estimatedUsage || 0}L for ${vehicleTwin.tripDistance || 0}km trip.`;
+      }
     }
   }
 

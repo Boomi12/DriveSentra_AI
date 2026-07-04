@@ -733,7 +733,17 @@ export async function generateAccurateItinerary(input) {
   const timeline = [];
   const infeasible = [];
   const isEV = vehicleType?.toUpperCase() === 'EV';
-  let activeRange = mileageOrRange * (fuelOrBatteryLevel / 100);
+  
+  // Calculate activeRange dynamically based on drivetrain technology
+  let activeRange;
+  if (isEV) {
+    activeRange = (mileageOrRange <= 150) ? mileageOrRange : mileageOrRange * (fuelOrBatteryLevel / 100);
+  } else {
+    const tankCapacity = 35;
+    const fuelLevel = (fuelOrBatteryLevel / 100) * tankCapacity;
+    const resolvedMileage = input.mileage || 15;
+    activeRange = fuelLevel * resolvedMileage;
+  }
 
   // 1. Determine daily sightseeing curation limits
   let maxPerDay = 3;
@@ -760,10 +770,101 @@ export async function generateAccurateItinerary(input) {
     });
   }
 
+  let currentDay = 1;
+  let currentTime = timeToMinutes(startTime);
+  
+  const hotel = destData.haltingPlaces?.[0]?.name || "Resort & Spa";
+  const hotelSpecs = getPlaceSpecs(hotel);
+  const hotelCoords = { lat: hotelSpecs.lat, lng: hotelSpecs.lng };
+  
+  let currentLoc = source;
+  let currentCoords = sourceCoords;
+
+  // Closure helper to add a waypoint, track vehicle range, and insert fuel/charging stops dynamically
+  async function travelToPlace(targetName, purpose, reasonText, visitDuration, targetSpecs) {
+    const targetCoords = { 
+      lat: targetSpecs?.lat || destinationCoords?.lat || 12.2958, 
+      lng: targetSpecs?.lng || destinationCoords?.lng || 76.6394 
+    };
+    let transit = getTravelTimeWithCoords(currentLoc, targetName, source, destination, currentCoords, targetCoords);
+    const dist = transit; // 1 min = 1 km
+
+    // Check range constraint
+    if (activeRange - dist < 50) {
+      // Find a charger/refuel stop
+      const station = destData.fuelChargingStops?.[0] || { name: isEV ? "Tata Power EV Fast Charger" : "HP Fuel Station" };
+      const stationSpecs = getPlaceSpecs(station.name);
+      const stationCoords = { 
+        lat: stationSpecs.lat || destinationCoords?.lat || 12.2958, 
+        lng: stationSpecs.lng || destinationCoords?.lng || 76.6394 
+      };
+      
+      // Travel from current location to station
+      const transitToStation = getTravelTimeWithCoords(currentLoc, station.name, source, destination, currentCoords, stationCoords);
+      currentTime += transitToStation;
+      activeRange -= transitToStation;
+
+      // Insert stop
+      timeline.push({
+        day: currentDay,
+        time: minutesToTime(currentTime),
+        endTime: minutesToTime(currentTime + (isEV ? 30 : 10)),
+        place: station.name,
+        purpose: isEV ? "EV Charging" : "Refuel Stop",
+        reason: `Stop required: Remaining range is critically low (${Math.round(activeRange)} km). Recharging/Refueling is necessary to prevent route breakdown risk on the way to ${targetName}.`,
+        travelTimeFromPrevious: formatMinutes(transitToStation),
+        isOpen: true,
+        warning: null,
+        lat: stationCoords.lat,
+        lng: stationCoords.lng,
+        placeId: stationSpecs.placeId || `mock_station_${station.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+        address: stationSpecs.address || station.name
+      });
+
+      currentTime += (isEV ? 30 : 10);
+      const fullRangeLimit = isEV 
+        ? (mileageOrRange <= 150 ? 340 : mileageOrRange) 
+        : (mileageOrRange <= 300 ? 580 : mileageOrRange);
+      activeRange = isEV ? fullRangeLimit * 0.9 : fullRangeLimit;
+
+      // Travel from station to target destination
+      currentLoc = station.name;
+      currentCoords = stationCoords;
+      transit = getTravelTimeWithCoords(currentLoc, targetName, source, destination, currentCoords, targetCoords);
+    }
+
+    // Travel to target
+    currentTime += transit;
+    activeRange -= transit;
+
+    timeline.push({
+      day: currentDay,
+      time: minutesToTime(currentTime),
+      endTime: minutesToTime(currentTime + visitDuration),
+      place: targetName,
+      purpose,
+      reason: reasonText,
+      travelTimeFromPrevious: formatMinutes(transit),
+      isOpen: purpose === 'Sightseeing' 
+        ? getPlaceTimeStatus(targetName, minutesToTime(currentTime)) === 'OPEN'
+        : checkOpeningHours(targetName, minutesToTime(currentTime), visitDuration),
+      warning: null,
+      lat: targetCoords.lat,
+      lng: targetCoords.lng,
+      placeId: targetSpecs?.placeId || `mock_${purpose.toLowerCase().replace(/[^a-z0-9]/g, '')}_${targetName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+      address: targetSpecs?.address || `${targetName}, ${destination}`
+    });
+
+    currentTime += visitDuration;
+    currentLoc = targetName;
+    currentCoords = targetCoords;
+  }
+
   // 3. Generate Daily Timeline Schedules
   for (let day = 1; day <= durationDays; day++) {
+    currentDay = day;
     if (day === 1) {
-      let currentTime = timeToMinutes(startTime);
+      currentTime = timeToMinutes(startTime);
 
       // Start from Source
       timeline.push({
@@ -786,73 +887,10 @@ export async function generateAccurateItinerary(input) {
       const restStopName = destData.restStops?.[0]?.name || "Highway Nest Food Plaza";
       const restStopSpecs = getPlaceSpecs(restStopName);
       
-      const prevCoords = sourceCoords;
-      const restCoords = { lat: restStopSpecs.lat, lng: restStopSpecs.lng };
-      const travelToRest = getTravelTimeWithCoords(source, restStopName, source, destination, prevCoords, restCoords);
-      
-      currentTime += travelToRest;
-      activeRange -= (travelToRest / 60) * 60;
-
-      timeline.push({
-        day: 1,
-        time: minutesToTime(currentTime),
-        endTime: minutesToTime(currentTime + restStopSpecs.duration),
-        place: restStopName,
-        purpose: "Rest & Coffee",
-        reason: `Stop for refreshments and clean amenities. Essential for safety to prevent fatigue after ${formatMinutes(travelToRest)} driving.`,
-        travelTimeFromPrevious: formatMinutes(travelToRest),
-        isOpen: checkOpeningHours(restStopName, minutesToTime(currentTime), restStopSpecs.duration),
-        warning: null,
-        lat: restStopSpecs.lat,
-        lng: restStopSpecs.lng,
-        placeId: restStopSpecs.placeId || `mock_rest_${restStopName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-        address: restStopSpecs.address || `${restStopName}, Highway`
-      });
-
-      currentTime += restStopSpecs.duration;
-
-      // Fuel recharging stop if needed
-      if (activeRange < 80) {
-        const charger = destData.fuelChargingStops?.[0] || { name: isEV ? "Tata Power EV Fast Charger" : "HP Fuel Station" };
-        const chargerSpecs = getPlaceSpecs(charger.name);
-        const travelToCharge = 15;
-        currentTime += travelToCharge;
-        timeline.push({
-          day: 1,
-          time: minutesToTime(currentTime),
-          endTime: minutesToTime(currentTime + 25),
-          place: charger.name,
-          purpose: isEV ? "EV Charging" : "Refuel Stop",
-          reason: `Warning: Range is low (${Math.round(activeRange)}km). Top up energy level to prevent route breakdown risks.`,
-          travelTimeFromPrevious: formatMinutes(travelToCharge),
-          isOpen: true,
-          warning: null,
-          lat: chargerSpecs.lat || destinationCoords?.lat,
-          lng: chargerSpecs.lng || destinationCoords?.lng,
-          placeId: chargerSpecs.placeId || `mock_charger_${charger.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: chargerSpecs.address || charger.name
-        });
-        currentTime += 25;
-        activeRange = mileageOrRange * 0.9;
-      }
+      await travelToPlace(restStopName, "Rest & Coffee", `Stop for refreshments and clean amenities. Essential for safety to prevent fatigue after driving.`, restStopSpecs.duration, restStopSpecs);
 
       // Arrive at destination
-      const lastStop = timeline[timeline.length - 1];
-      const lastStopCoords = { lat: lastStop.lat, lng: lastStop.lng };
-      const travelToDest = getTravelTimeWithCoords(lastStop.place, destination, source, destination, lastStopCoords, destinationCoords);
-      currentTime += travelToDest;
-      activeRange -= (travelToDest / 60) * 60;
-
-      timeline.push({
-        day: 1,
-        time: minutesToTime(currentTime),
-        endTime: minutesToTime(currentTime),
-        place: `Arrive at ${destination}`,
-        purpose: "Arrival",
-        reason: `Arrive safely at your destination city ${destination} after driving.`,
-        travelTimeFromPrevious: formatMinutes(travelToDest),
-        isOpen: true,
-        warning: null,
+      await travelToPlace(`Arrive at ${destination}`, "Arrival", `Arrive safely at your destination city ${destination} after driving.`, 0, {
         lat: destinationCoords?.lat,
         lng: destinationCoords?.lng,
         placeId: destinationPlaceId,
@@ -860,35 +898,10 @@ export async function generateAccurateItinerary(input) {
       });
 
       // Lunch break inside destination (only if arriving before 2:30 PM)
-      let currentLoc = `Arrive at ${destination}`;
-      let currentCoords = destinationCoords;
-
       if (currentTime < timeToMinutes("02:30 PM")) {
         const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
         const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-        const restCoords = { lat: restaurantSpecs.lat, lng: restaurantSpecs.lng };
-        const restaurantTransit = getTravelTimeWithCoords(currentLoc, preferredRestaurant, source, destination, currentCoords, restCoords);
-        currentTime += restaurantTransit;
-
-        timeline.push({
-          day: 1,
-          time: minutesToTime(currentTime),
-          endTime: minutesToTime(currentTime + restaurantSpecs.duration),
-          place: preferredRestaurant,
-          purpose: "Lunch Break",
-          reason: `Enjoy local cuisine at highly recommended place in ${destination}.`,
-          travelTimeFromPrevious: formatMinutes(restaurantTransit),
-          isOpen: checkOpeningHours(preferredRestaurant, minutesToTime(currentTime), restaurantSpecs.duration),
-          warning: null,
-          lat: restaurantSpecs.lat || destinationCoords?.lat,
-          lng: restaurantSpecs.lng || destinationCoords?.lng,
-          placeId: restaurantSpecs.placeId || `mock_rest_${preferredRestaurant.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: restaurantSpecs.address || `${preferredRestaurant}, ${destination}`
-        });
-
-        currentTime += restaurantSpecs.duration;
-        currentLoc = preferredRestaurant;
-        currentCoords = restCoords;
+        await travelToPlace(preferredRestaurant, "Lunch Break", `Enjoy local cuisine at highly recommended place in ${destination}.`, restaurantSpecs.duration, restaurantSpecs);
       }
 
       // Day 1 attractions
@@ -901,7 +914,6 @@ export async function generateAccurateItinerary(input) {
         const attCoords = { lat: specs.lat, lng: specs.lng };
         const transit = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
         const arrivalTime = currentTime + transit;
-        const arrivalTimeStr = minutesToTime(arrivalTime);
 
         // Check if it fits before end of day for a 1-day trip
         const travelToDest = getTravelTimeWithCoords(att.name, destination, source, destination, attCoords, destinationCoords);
@@ -917,39 +929,20 @@ export async function generateAccurateItinerary(input) {
           continue;
         }
 
-        const status = getPlaceTimeStatus(att.name, arrivalTimeStr);
+        const status = getPlaceTimeStatus(att.name, minutesToTime(arrivalTime));
         if (status === 'OPEN' || status === 'LIMITED') {
-          timeline.push({
-            day: 1,
-            time: arrivalTimeStr,
-            endTime: minutesToTime(arrivalTime + specs.duration),
-            place: att.name,
-            purpose: "Sightseeing",
-            reason: att.description || "Top rated local sight.",
-            travelTimeFromPrevious: formatMinutes(transit),
-            isOpen: true,
-            warning: null,
-            lat: specs.lat,
-            lng: specs.lng,
-            placeId: specs.placeId || `mock_att_${att.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-            address: specs.address || `${att.name}, ${destination}`
-          });
-
-          currentTime = arrivalTime + specs.duration;
-          currentLoc = att.name;
-          currentCoords = attCoords;
+          await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration, specs);
           day1AttractionsScheduled++;
-
           attractionPool.splice(i, 1);
           i--;
         } else {
-          let reasonMsg = `${att.name} is closed at ${arrivalTimeStr}.`;
+          let reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}.`;
           const openTime = specs.open || specs.openTime || "09:00 AM";
           const closeTime = specs.close || specs.closeTime || "06:00 PM";
           if (status === 'CLOSED') {
-            reasonMsg = `${att.name} is closed at ${arrivalTimeStr}. Opening hours: ${openTime} - ${closeTime}.`;
+            reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}. Opening hours: ${openTime} - ${closeTime}.`;
           } else if (status === 'NOT ENOUGH TIME') {
-            reasonMsg = `${att.name} has insufficient visit time at ${arrivalTimeStr}. Minimum: ${specs.minDuration || 60}m. Closes at ${closeTime}.`;
+            reasonMsg = `${att.name} has insufficient visit time at ${minutesToTime(arrivalTime)}. Minimum: ${specs.minDuration || 60}m. Closes at ${closeTime}.`;
           }
           infeasible.push({
             place: att.name,
@@ -962,29 +955,7 @@ export async function generateAccurateItinerary(input) {
       if (currentTime < timeToMinutes("09:30 PM")) {
         const preferredRestaurant = destData.restaurants?.[1]?.name || destData.restaurants?.[0]?.name || "Local Dine";
         const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-        const restCoords = { lat: restaurantSpecs.lat, lng: restaurantSpecs.lng };
-        const transit = getTravelTimeWithCoords(currentLoc, preferredRestaurant, source, destination, currentCoords, restCoords);
-        currentTime += transit;
-        
-        timeline.push({
-          day: 1,
-          time: minutesToTime(currentTime),
-          endTime: minutesToTime(currentTime + restaurantSpecs.duration),
-          place: preferredRestaurant,
-          purpose: "Dinner Break",
-          reason: `Enjoy evening dinner at highly recommended place ${preferredRestaurant} in ${destination}.`,
-          travelTimeFromPrevious: formatMinutes(transit),
-          isOpen: checkOpeningHours(preferredRestaurant, minutesToTime(currentTime), restaurantSpecs.duration),
-          warning: null,
-          lat: restaurantSpecs.lat || destinationCoords?.lat,
-          lng: restaurantSpecs.lng || destinationCoords?.lng,
-          placeId: restaurantSpecs.placeId || `mock_rest_${preferredRestaurant.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: restaurantSpecs.address || `${preferredRestaurant}, ${destination}`
-        });
-
-        currentTime += restaurantSpecs.duration;
-        currentLoc = preferredRestaurant;
-        currentCoords = restCoords;
+        await travelToPlace(preferredRestaurant, "Dinner Break", `Enjoy evening dinner at highly recommended place ${preferredRestaurant} in ${destination}.`, restaurantSpecs.duration, restaurantSpecs);
       }
 
       // Day 1 Wrap Up (Lodging or Return)
@@ -992,39 +963,10 @@ export async function generateAccurateItinerary(input) {
       if (durationDays > 1 || needStayBool) {
         const hotel = destData.haltingPlaces?.[0]?.name || "Resort & Spa";
         const hotelSpecs = getPlaceSpecs(hotel);
-        const hotelCoords = { lat: hotelSpecs.lat, lng: hotelSpecs.lng };
-        const hotelTransit = getTravelTimeWithCoords(currentLoc, hotel, source, destination, currentCoords, hotelCoords);
-        currentTime += hotelTransit;
-
-        timeline.push({
-          day: 1,
-          time: minutesToTime(currentTime),
-          endTime: minutesToTime(currentTime + 600),
-          place: hotel,
-          purpose: "Resort Check-in",
-          reason: "Unpack, refresh, and settle down at your overnight stay lodging.",
-          travelTimeFromPrevious: formatMinutes(hotelTransit),
-          isOpen: true,
-          warning: null,
-          lat: hotelSpecs.lat,
-          lng: hotelSpecs.lng,
-          placeId: hotelSpecs.placeId || `mock_stay_${hotel.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: hotelSpecs.address || `${hotel}, ${destination}`
-        });
+        await travelToPlace(hotel, "Resort Check-in", "Unpack, refresh, and settle down at your overnight stay lodging.", 600, hotelSpecs);
       } else {
         if (tripMode === 'Round Trip') {
-          const returnTransit = getTravelTimeWithCoords(currentLoc, source, source, destination, currentCoords, sourceCoords);
-          currentTime += returnTransit;
-          timeline.push({
-            day: 1,
-            time: minutesToTime(currentTime),
-            endTime: minutesToTime(currentTime),
-            place: `Arrive at ${source}`,
-            purpose: "Arrival",
-            reason: "Complete your road trip and safely arrive back home.",
-            travelTimeFromPrevious: formatMinutes(returnTransit),
-            isOpen: true,
-            warning: null,
+          await travelToPlace(`Arrive at ${source}`, "Arrival", "Complete your road trip and safely arrive back home.", 0, {
             lat: sourceCoords?.lat,
             lng: sourceCoords?.lng,
             placeId: sourcePlaceId,
@@ -1054,11 +996,10 @@ export async function generateAccurateItinerary(input) {
       const isFinalDay = (day === durationDays);
       const hotel = destData.haltingPlaces?.[0]?.name || "Resort & Spa";
       const hotelSpecs = getPlaceSpecs(hotel);
-      const hotelCoords = { lat: hotelSpecs.lat, lng: hotelSpecs.lng };
 
-      let currentTime = timeToMinutes("09:00 AM");
-      let currentLoc = hotel;
-      let currentCoords = hotelCoords;
+      currentTime = timeToMinutes("09:00 AM");
+      currentLoc = hotel;
+      currentCoords = { lat: hotelSpecs.lat, lng: hotelSpecs.lng };
 
       if (isFinalDay) {
         timeline.push({
@@ -1103,29 +1044,7 @@ export async function generateAccurateItinerary(input) {
         if (attractionsScheduled === 1 && currentTime < timeToMinutes("02:30 PM")) {
           const preferredRestaurant = destData.restaurants?.[day % destData.restaurants.length]?.name || destData.restaurants[0]?.name;
           const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-          const restCoords = { lat: restaurantSpecs.lat, lng: restaurantSpecs.lng };
-          const transit = getTravelTimeWithCoords(currentLoc, preferredRestaurant, source, destination, currentCoords, restCoords);
-          currentTime += transit;
-
-          timeline.push({
-            day,
-            time: minutesToTime(currentTime),
-            endTime: minutesToTime(currentTime + restaurantSpecs.duration),
-            place: preferredRestaurant,
-            purpose: "Lunch Break",
-            reason: "Lunch stop for regional delicacies.",
-            travelTimeFromPrevious: formatMinutes(transit),
-            isOpen: checkOpeningHours(preferredRestaurant, minutesToTime(currentTime), restaurantSpecs.duration),
-            warning: null,
-            lat: restaurantSpecs.lat,
-            lng: restaurantSpecs.lng,
-            placeId: restaurantSpecs.placeId || `mock_rest_${preferredRestaurant.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-            address: restaurantSpecs.address || `${preferredRestaurant}, ${destination}`
-          });
-
-          currentTime += restaurantSpecs.duration;
-          currentLoc = preferredRestaurant;
-          currentCoords = restCoords;
+          await travelToPlace(preferredRestaurant, "Lunch Break", "Lunch stop for regional delicacies.", restaurantSpecs.duration, restaurantSpecs);
         }
 
         const att = attractionPool[i];
@@ -1133,41 +1052,21 @@ export async function generateAccurateItinerary(input) {
         const attCoords = { lat: specs.lat, lng: specs.lng };
         const transit = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
         const arrivalTime = currentTime + transit;
-        const arrivalTimeStr = minutesToTime(arrivalTime);
 
-        const status = getPlaceTimeStatus(att.name, arrivalTimeStr);
+        const status = getPlaceTimeStatus(att.name, minutesToTime(arrivalTime));
         if (status === 'OPEN' || status === 'LIMITED') {
-          timeline.push({
-            day,
-            time: arrivalTimeStr,
-            endTime: minutesToTime(arrivalTime + specs.duration),
-            place: att.name,
-            purpose: "Sightseeing",
-            reason: att.description || "Top rated local sight.",
-            travelTimeFromPrevious: formatMinutes(transit),
-            isOpen: true,
-            warning: null,
-            lat: specs.lat,
-            lng: specs.lng,
-            placeId: specs.placeId || `mock_att_${att.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-            address: specs.address || `${att.name}, ${destination}`
-          });
-
-          currentTime = arrivalTime + specs.duration;
-          currentLoc = att.name;
-          currentCoords = attCoords;
+          await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration, specs);
           attractionsScheduled++;
-
           attractionPool.splice(i, 1);
           i--;
         } else {
-          let reasonMsg = `${att.name} is closed at ${arrivalTimeStr}.`;
+          let reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}.`;
           const openTime = specs.open || specs.openTime || "09:00 AM";
           const closeTime = specs.close || specs.closeTime || "06:00 PM";
           if (status === 'CLOSED') {
-            reasonMsg = `${att.name} is closed at ${arrivalTimeStr}. Opening hours: ${openTime} - ${closeTime}.`;
+            reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}. Opening hours: ${openTime} - ${closeTime}.`;
           } else if (status === 'NOT ENOUGH TIME') {
-            reasonMsg = `${att.name} has insufficient visit time at ${arrivalTimeStr}. Minimum: ${specs.minDuration || 60}m. Closes at ${closeTime}.`;
+            reasonMsg = `${att.name} has insufficient visit time at ${minutesToTime(arrivalTime)}. Minimum: ${specs.minDuration || 60}m. Closes at ${closeTime}.`;
           }
           infeasible.push({
             place: att.name,
@@ -1180,89 +1079,22 @@ export async function generateAccurateItinerary(input) {
       if (currentTime < timeToMinutes("09:30 PM")) {
         const preferredRestaurant = destData.restaurants?.[(day + 1) % destData.restaurants.length]?.name || destData.restaurants[0]?.name;
         const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-        const restCoords = { lat: restaurantSpecs.lat, lng: restaurantSpecs.lng };
-        const transit = getTravelTimeWithCoords(currentLoc, preferredRestaurant, source, destination, currentCoords, restCoords);
-        currentTime += transit;
-
-        timeline.push({
-          day,
-          time: minutesToTime(currentTime),
-          endTime: minutesToTime(currentTime + restaurantSpecs.duration),
-          place: preferredRestaurant,
-          purpose: "Dinner Break",
-          reason: "Relaxing dinner at a recommended local restaurant.",
-          travelTimeFromPrevious: formatMinutes(transit),
-          isOpen: checkOpeningHours(preferredRestaurant, minutesToTime(currentTime), restaurantSpecs.duration),
-          warning: null,
-          lat: restaurantSpecs.lat,
-          lng: restaurantSpecs.lng,
-          placeId: restaurantSpecs.placeId || `mock_rest_${preferredRestaurant.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: restaurantSpecs.address || `${preferredRestaurant}, ${destination}`
-        });
-
-        currentTime += restaurantSpecs.duration;
-        currentLoc = preferredRestaurant;
-        currentCoords = restCoords;
+        await travelToPlace(preferredRestaurant, "Dinner Break", "Relaxing dinner at a recommended local restaurant.", restaurantSpecs.duration, restaurantSpecs);
       }
 
       // End of day
       if (!isFinalDay) {
-        const hotelTransit = getTravelTimeWithCoords(currentLoc, hotel, source, destination, currentCoords, hotelCoords);
-        currentTime += hotelTransit;
-
-        timeline.push({
-          day,
-          time: minutesToTime(currentTime),
-          endTime: minutesToTime(currentTime + 600),
-          place: hotel,
-          purpose: "Return to Lodging",
-          reason: "Return to your hotel for overnight rest and recovery.",
-          travelTimeFromPrevious: formatMinutes(hotelTransit),
-          isOpen: true,
-          warning: null,
-          lat: hotelSpecs.lat,
-          lng: hotelSpecs.lng,
-          placeId: hotelSpecs.placeId || `mock_stay_${hotel.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: hotelSpecs.address || `${hotel}, ${destination}`
-        });
+        await travelToPlace(hotel, "Return to Lodging", "Return to your hotel for overnight rest and recovery.", 600, hotelSpecs);
       } else {
         if (tripMode === 'Round Trip') {
-          const returnTransit = getTravelTimeWithCoords(currentLoc, source, source, destination, currentCoords, sourceCoords);
-          currentTime += returnTransit;
-          timeline.push({
-            day,
-            time: minutesToTime(currentTime),
-            endTime: minutesToTime(currentTime),
-            place: `Arrive at ${source}`,
-            purpose: "Arrival",
-            reason: "Complete your road trip and safely arrive back home.",
-            travelTimeFromPrevious: formatMinutes(returnTransit),
-            isOpen: true,
-            warning: null,
+          await travelToPlace(`Arrive at ${source}`, "Arrival", "Complete your road trip and safely arrive back home.", 0, {
             lat: sourceCoords?.lat,
             lng: sourceCoords?.lng,
             placeId: sourcePlaceId,
             address: sourceAddress || source
           });
         } else {
-          const hotelTransit = getTravelTimeWithCoords(currentLoc, hotel, source, destination, currentCoords, hotelCoords);
-          currentTime += hotelTransit;
-
-          timeline.push({
-            day,
-            time: minutesToTime(currentTime),
-            endTime: minutesToTime(currentTime),
-            place: `End of Journey at ${hotel}`,
-            purpose: "Stay & Rest",
-            reason: "Check into your destination lodging. Your one-way road trip is successfully completed.",
-            travelTimeFromPrevious: formatMinutes(hotelTransit),
-            isOpen: true,
-            warning: null,
-            lat: hotelSpecs.lat,
-            lng: hotelSpecs.lng,
-            placeId: hotelSpecs.placeId || `mock_stay_${hotel.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-            address: hotelSpecs.address || `${hotel}, ${destination}`
-          });
+          await travelToPlace(`End of Journey at ${hotel}`, "Stay & Rest", "Check into your destination lodging. Your one-way road trip is successfully completed.", 0, hotelSpecs);
         }
       }
     }

@@ -3,6 +3,7 @@ import Itinerary from '../models/Itinerary.js';
 import DigitalTwin from '../models/DigitalTwin.js';
 import AgentRecommendation from '../models/AgentRecommendation.js';
 import { evaluateAgents } from '../utils/aiEngine.js';
+import Vehicle from '../models/Vehicle.js';
 import { 
   generateAccurateItinerary, 
   validateTimeline, 
@@ -138,6 +139,21 @@ router.post('/generate', async (req, res) => {
     const weatherInfo = await getWeatherData(dstCoords.lat, dstCoords.lng, destination);
 
     // 3. Generate accurate timeline using scheduling engine
+    let resolvedVehicleType = vehicleType;
+    let resolvedFuelOrBatteryLevel = fuelVal;
+    let resolvedMileageOrRange = rangeVal;
+    let resolvedMileage = 15;
+
+    if (userId) {
+      const dbVehicle = await Vehicle.findOne({ userId });
+      if (dbVehicle) {
+        resolvedVehicleType = dbVehicle.type;
+        resolvedFuelOrBatteryLevel = dbVehicle.type === 'EV' ? dbVehicle.batteryPercentage : dbVehicle.fuelPercentage;
+        resolvedMileageOrRange = dbVehicle.range;
+        resolvedMileage = dbVehicle.mileage || 15;
+      }
+    }
+
     const rawTimeline = await generateAccurateItinerary({
       source,
       destination,
@@ -146,9 +162,10 @@ router.post('/generate', async (req, res) => {
       tripType,
       foodPreference,
       budget,
-      vehicleType,
-      fuelOrBatteryLevel: fuelVal,
-      mileageOrRange: rangeVal,
+      vehicleType: resolvedVehicleType,
+      fuelOrBatteryLevel: resolvedFuelOrBatteryLevel,
+      mileageOrRange: resolvedMileageOrRange,
+      mileage: resolvedMileage,
       durationDays: Number(durationDays),
       tripStyle,
       interests,
@@ -203,11 +220,11 @@ router.post('/generate', async (req, res) => {
         tripType,
         foodPreference,
         budget,
-        vehicleType,
+        vehicleType: resolvedVehicleType,
         tripDate: tDate,
         startTime: tStartTime,
-        fuelOrBatteryLevel: fuelVal,
-        mileageOrRange: rangeVal,
+        fuelOrBatteryLevel: resolvedFuelOrBatteryLevel,
+        mileageOrRange: resolvedMileageOrRange,
         durationDays: Number(durationDays),
         tripStyle,
         interests,
@@ -243,6 +260,33 @@ router.post('/generate', async (req, res) => {
       twinRisk = 'medium';
     }
 
+    // Calculate total trip distance (sum of transit times/distances)
+    const tripDistanceVal = timelineToSave.reduce((acc, item) => {
+      if (!item.travelTimeFromPrevious) return acc;
+      const matchM = item.travelTimeFromPrevious.match(/(\d+)m/);
+      const matchH = item.travelTimeFromPrevious.match(/(\d+)h/);
+      const hrs = matchH ? parseInt(matchH[1], 10) : 0;
+      const mins = matchM ? parseInt(matchM[1], 10) : 0;
+      return acc + (hrs * 60 + mins);
+    }, 0);
+
+    // Calculate estimated battery/fuel usage
+    let estimatedUsageVal = 0;
+    const isEVResolved = resolvedVehicleType?.toUpperCase() === 'EV';
+    if (isEVResolved) {
+      const fullEVRange = resolvedMileageOrRange > 150 ? resolvedMileageOrRange : 340;
+      estimatedUsageVal = Math.round((tripDistanceVal / fullEVRange) * 100);
+    } else {
+      estimatedUsageVal = Math.round(tripDistanceVal / resolvedMileage);
+    }
+
+    // Determine warning state
+    const currentActiveRange = isEVResolved 
+      ? resolvedMileageOrRange * (resolvedFuelOrBatteryLevel / 100)
+      : (resolvedFuelOrBatteryLevel / 100) * 35 * resolvedMileage;
+    
+    const fuelWarningVal = currentActiveRange < tripDistanceVal;
+
     if (!twinState) {
       twinState = new DigitalTwin({
         tripId,
@@ -252,25 +296,34 @@ router.post('/generate', async (req, res) => {
           breakNeeded: false
         },
         vehicleTwin: {
-          vehicleType,
-          fuelOrBatteryLevel: fuelVal,
-          range: rangeVal,
-          healthStatus: 'good'
+          vehicleType: resolvedVehicleType,
+          fuelOrBatteryLevel: resolvedFuelOrBatteryLevel,
+          range: resolvedMileageOrRange,
+          healthStatus: 'good',
+          tripDistance: tripDistanceVal,
+          estimatedUsage: estimatedUsageVal,
+          fuelWarning: fuelWarningVal
         },
         journeyTwin: {
           weather: weatherInfo.condition,
           traffic: 'normal',
           riskLevel: twinRisk,
+          weatherRisk: twinRisk,
           nextStop: timelineToSave[1] ? timelineToSave[1].place : 'None'
         }
       });
       await twinState.save();
     } else {
-      twinState.vehicleTwin.vehicleType = vehicleType;
-      twinState.vehicleTwin.fuelOrBatteryLevel = fuelVal;
-      twinState.vehicleTwin.range = rangeVal;
+      twinState.vehicleTwin.vehicleType = resolvedVehicleType;
+      twinState.vehicleTwin.fuelOrBatteryLevel = resolvedFuelOrBatteryLevel;
+      twinState.vehicleTwin.range = resolvedMileageOrRange;
+      twinState.vehicleTwin.tripDistance = tripDistanceVal;
+      twinState.vehicleTwin.estimatedUsage = estimatedUsageVal;
+      twinState.vehicleTwin.fuelWarning = fuelWarningVal;
       twinState.journeyTwin.weather = weatherInfo.condition;
       twinState.journeyTwin.riskLevel = twinRisk;
+      twinState.journeyTwin.weatherRisk = twinRisk;
+      twinState.journeyTwin.nextStop = timelineToSave[1] ? timelineToSave[1].place : 'None';
       await twinState.save();
     }
 
