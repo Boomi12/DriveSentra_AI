@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createModelWrapper } from '../utils/mockDb.js';
 
 const DigitalTwinSchema = new mongoose.Schema({
   tripId: {
@@ -32,4 +33,5 @@ DigitalTwinSchema.pre('save', function (next) {
   next();
 });
 
-export default mongoose.model('DigitalTwin', DigitalTwinSchema);
+const DigitalTwinModel = mongoose.model('DigitalTwin', DigitalTwinSchema);
+export default createModelWrapper('DigitalTwin', DigitalTwinSchema, DigitalTwinModel);

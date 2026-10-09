@@ -8,6 +8,9 @@ import itineraryRouter from './routes/itinerary.js';
 import placesRouter from './routes/places.js';
 import twinRouter from './routes/twin.js';
 import agentsRouter from './routes/agents.js';
+import tripRouter from './routes/trip.js';
+import driverRouter from './routes/driver.js';
+import emergencyRouter from './routes/emergency.js';
 
 // Load environment variables
 dotenv.config();
@@ -37,6 +40,9 @@ app.use('/api/itinerary', itineraryRouter);
 app.use('/api/places', placesRouter);
 app.use('/api/twin', twinRouter);
 app.use('/api/agents', agentsRouter);
+app.use('/api/trip', tripRouter);
+app.use('/api/driver', driverRouter);
+app.use('/api/emergency', emergencyRouter);
 
 // Health Check API
 app.get('/api/health', (req, res) => {

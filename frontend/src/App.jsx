@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { Compass, Calendar, Activity, BrainCircuit, ShieldAlert, Shield, Menu, X, ArrowUpRight } from 'lucide-react';
+import { Compass, Calendar, Activity, BrainCircuit, ShieldAlert, Shield, Menu, X, ArrowUpRight, Navigation, Eye, History } from 'lucide-react';
 
 // Import Pages
 import JourneyCompanion from './pages/JourneyCompanion';
+import TripPlanner from './pages/TripPlanner';
 import Itinerary from './pages/Itinerary';
 import DigitalTwin from './pages/DigitalTwin';
 import AgentPanel from './pages/AgentPanel';
+import DriverMonitoring from './pages/DriverMonitoring';
+import EmergencyAlerts from './pages/EmergencyAlerts';
+import DriverLogs from './pages/DriverLogs';
 
 import './App.css';
 
@@ -26,10 +30,10 @@ const DashboardLayout = ({ children }) => {
     checkTrip();
     window.addEventListener('storage', checkTrip);
     window.addEventListener('twin-updated', checkTrip);
-    
+
     // Custom interval to keep active trip ID in sync
     const interval = setInterval(checkTrip, 2000);
-    
+
     return () => {
       window.removeEventListener('storage', checkTrip);
       window.removeEventListener('twin-updated', checkTrip);
@@ -39,9 +43,13 @@ const DashboardLayout = ({ children }) => {
 
   const menuItems = [
     { name: 'Journey Companion', path: '/journey', icon: Compass },
+    { name: 'Trip Planner', path: '/trip-planner', icon: Navigation },
     { name: 'Itinerary Planner', path: '/itinerary', icon: Calendar },
     { name: 'Digital Twin Studio', path: '/digital-twin', icon: Activity },
-    { name: 'AI Agent Panel', path: '/agents', icon: BrainCircuit }
+    { name: 'AI Agent Panel', path: '/agents', icon: BrainCircuit },
+    { name: 'Driver Monitoring', path: '/driver-monitoring', icon: Eye },
+    { name: 'Emergency Alerts', path: '/emergency-alerts', icon: ShieldAlert },
+    { name: 'Driver Logs', path: '/driver-logs', icon: History }
   ];
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
@@ -56,7 +64,7 @@ const DashboardLayout = ({ children }) => {
             GUARDIANDRIVE AI
           </span>
         </div>
-        <button 
+        <button
           onClick={toggleMobileMenu}
           className="text-slate-400 hover:text-white transition-colors cursor-pointer"
         >
@@ -93,15 +101,13 @@ const DashboardLayout = ({ children }) => {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all group ${
-                      isActive
-                        ? 'bg-purple-600/10 text-purple-300 border border-purple-500/30 shadow-md shadow-purple-500/5'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent'
-                    }`}
+                    className={`flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all group ${isActive
+                      ? 'bg-purple-600/10 text-purple-300 border border-purple-500/30 shadow-md shadow-purple-500/5'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent'
+                      }`}
                   >
-                    <Icon className={`h-4.5 w-4.5 transition-colors ${
-                      isActive ? 'text-purple-400' : 'text-slate-400 group-hover:text-white'
-                    }`} />
+                    <Icon className={`h-4.5 w-4.5 transition-colors ${isActive ? 'text-purple-400' : 'text-slate-400 group-hover:text-white'
+                      }`} />
                     {item.name}
                   </Link>
                 );
@@ -139,7 +145,7 @@ const DashboardLayout = ({ children }) => {
         {mobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-30 flex">
             {/* Backdrop */}
-            <div 
+            <div
               className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
               onClick={toggleMobileMenu}
             ></div>
@@ -149,7 +155,7 @@ const DashboardLayout = ({ children }) => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800">
                   <span className="font-extrabold text-white text-sm tracking-wider">NAVIGATION</span>
-                  <button 
+                  <button
                     onClick={toggleMobileMenu}
                     className="text-slate-400 hover:text-white"
                   >
@@ -167,11 +173,10 @@ const DashboardLayout = ({ children }) => {
                         key={item.path}
                         to={item.path}
                         onClick={toggleMobileMenu}
-                        className={`flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${
-                          isActive
-                            ? 'bg-purple-600/10 text-purple-300 border border-purple-500/20'
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                        }`}
+                        className={`flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${isActive
+                          ? 'bg-purple-600/10 text-purple-300 border border-purple-500/20'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                          }`}
                       >
                         <Icon className="h-4 w-4" />
                         {item.name}
@@ -208,9 +213,13 @@ const App = () => {
       <DashboardLayout>
         <Routes>
           <Route path="/journey" element={<JourneyCompanion />} />
+          <Route path="/trip-planner" element={<TripPlanner />} />
           <Route path="/itinerary" element={<Itinerary />} />
           <Route path="/digital-twin" element={<DigitalTwin />} />
           <Route path="/agents" element={<AgentPanel />} />
+          <Route path="/driver-monitoring" element={<DriverMonitoring />} />
+          <Route path="/emergency-alerts" element={<EmergencyAlerts />} />
+          <Route path="/driver-logs" element={<DriverLogs />} />
           <Route path="/" element={<Navigate to="/journey" replace />} />
           <Route path="*" element={<Navigate to="/journey" replace />} />
         </Routes>

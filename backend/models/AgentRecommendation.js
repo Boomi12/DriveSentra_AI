@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createModelWrapper } from '../utils/mockDb.js';
 
 const AgentDetailSchema = new mongoose.Schema({
   status: { type: String, required: true },
@@ -27,4 +28,5 @@ AgentRecommendationSchema.pre('save', function (next) {
   next();
 });
 
-export default mongoose.model('AgentRecommendation', AgentRecommendationSchema);
+const AgentRecommendationModel = mongoose.model('AgentRecommendation', AgentRecommendationSchema);
+export default createModelWrapper('AgentRecommendation', AgentRecommendationSchema, AgentRecommendationModel);
