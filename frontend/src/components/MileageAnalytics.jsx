@@ -47,7 +47,7 @@ const MileageAnalytics = ({ vehicleType, performance, suggestions }) => {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-3.5 bg-slate-950/60 border border-slate-850 rounded-xl">
+          <div className="flex items-center justify-between p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl">
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center">
                 <Gauge className="h-4.5 w-4.5 text-purple-400" />
@@ -69,7 +69,7 @@ const MileageAnalytics = ({ vehicleType, performance, suggestions }) => {
             </span>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {suggestions && suggestions.map((sug, idx) => (
-                <div key={idx} className="p-3 bg-slate-950/40 border border-slate-850 rounded-xl flex items-start gap-2.5 hover:border-purple-500/10 transition-colors">
+                <div key={idx} className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl flex items-start gap-2.5 hover:border-purple-500/10 transition-colors">
                   <span className="h-1.5 w-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"></span>
                   <div className="flex-1">
                     {formatSuggestion(sug)}

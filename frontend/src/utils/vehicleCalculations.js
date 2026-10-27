@@ -128,7 +128,7 @@ export const localSuggestStops = (vehicleType, tripDistance, estimatedRange) => 
     while (currentDistance < tripDistance) {
       if (vehicleType === 'EV') {
         stops.push({
-          name: `GuardianDrive Charger Hub ${String.fromCharCode(64 + count)}`,
+          name: `DriveSentra Charger Hub ${String.fromCharCode(64 + count)}`,
           distance: currentDistance,
           type: 'EV Charging Station (150kW DC Fast)'
         });

@@ -40,7 +40,7 @@ router.post('/signup', async (req, res) => {
     await newUser.save();
 
     // Create JWT Token
-    const JWT_SECRET = process.env.JWT_SECRET || 'guardiandrive_jwt_secret_key_123';
+    const JWT_SECRET = process.env.JWT_SECRET || 'drivesentra_jwt_secret_key_123';
     const token = jwt.sign({ id: newUser._id }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
@@ -81,7 +81,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Create JWT Token
-    const JWT_SECRET = process.env.JWT_SECRET || 'guardiandrive_jwt_secret_key_123';
+    const JWT_SECRET = process.env.JWT_SECRET || 'drivesentra_jwt_secret_key_123';
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(200).json({
@@ -109,6 +109,31 @@ router.get('/me', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Get user info error:', error);
     res.status(500).json({ error: 'Server error retrieving user data' });
+  }
+});
+
+// PUT /api/auth/update
+router.put('/update', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    
+    req.user.name = name.trim();
+    await req.user.save();
+    
+    res.status(200).json({
+      success: true,
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Server error updating profile' });
   }
 });
 

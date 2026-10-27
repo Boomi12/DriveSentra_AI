@@ -19,7 +19,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div className="p-8 bg-slate-900/60 backdrop-blur-md border border-red-500/20 rounded-2xl shadow-2xl max-w-xl mx-auto my-12 text-center space-y-6">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-red-650 to-amber-600 flex items-center justify-center shadow-lg shadow-red-500/10 mx-auto">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-red-600 to-amber-600 flex items-center justify-center shadow-lg shadow-red-500/10 mx-auto">
             <ShieldAlert className="h-7 w-7 text-white" />
           </div>
           <div className="space-y-2">
@@ -31,7 +31,7 @@ class ErrorBoundary extends React.Component {
             </p>
           </div>
           {this.state.error && (
-            <div className="p-3.5 bg-slate-950 border border-slate-850 rounded-xl text-left">
+            <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-xl text-left">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                 Diagnostic Trace
               </span>

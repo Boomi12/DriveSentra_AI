@@ -74,6 +74,66 @@ export const updateWaypoint = async (tripId, waypointId, data) => {
   }
 };
 
+export const insertItineraryStop = async (tripId, stop, insertIndex, tripDetails) => {
+  try {
+    const response = await api.post('/itinerary/insert-stop', { tripId, stop, insertIndex, tripDetails });
+    return response.data;
+  } catch (error) {
+    console.error('Error inserting stop:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const removeItineraryStop = async (tripId, index, stopId, tripDetails) => {
+  try {
+    const response = await api.post('/itinerary/remove-stop', { tripId, index, stopId, tripDetails });
+    return response.data;
+  } catch (error) {
+    console.error('Error removing stop:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const reorderItineraryStops = async (tripId, fromIndex, toIndex, tripDetails) => {
+  try {
+    const response = await api.post('/itinerary/reorder-stops', { tripId, fromIndex, toIndex, tripDetails });
+    return response.data;
+  } catch (error) {
+    console.error('Error reordering stops:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const updateStopDurationApi = async (tripId, index, stopId, duration, tripDetails) => {
+  try {
+    const response = await api.post('/itinerary/update-duration', { tripId, index, stopId, duration, tripDetails });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating stop duration:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const toggleStopPinApi = async (tripId, index, stopId, isPinned, pinnedTime, tripDetails) => {
+  try {
+    const response = await api.post('/itinerary/toggle-pin', { tripId, index, stopId, isPinned, pinnedTime, tripDetails });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating pin status:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const rescheduleItinerary = async (tripId, timeline) => {
+  try {
+    const response = await api.post('/itinerary/reschedule', { tripId, timeline });
+    return response.data;
+  } catch (error) {
+    console.error('Error rescheduling itinerary:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
 export const checkPlaceFeasibility = async (tripId, place, time) => {
   try {
     const response = await api.post('/itinerary/check-place', { tripId, place, time });

@@ -38,21 +38,50 @@ const ItinerarySchema = new mongoose.Schema({
     windSpeed: { type: Number },
     description: { type: String }
   },
-  tripMode: { type: String, default: 'One Way' },
+  tripMode: { type: String, default: 'Round Trip' },
+  isFeasible: { type: Boolean, default: true },
+  infeasibilityDetails: {
+    reason: { type: String },
+    alternatives: [{ type: String }]
+  },
+  roundTripMetrics: {
+    totalDistanceKm: { type: Number },
+    totalDrivingMinutes: { type: Number },
+    totalTripDurationMinutes: { type: Number },
+    returnTime: { type: String },
+    returnDay: { type: Number }
+  },
+  overnightHalt: {
+    place: { type: String },
+    day: { type: Number },
+    checkInTime: { type: String },
+    checkOutTime: { type: String },
+    address: { type: String }
+  },
   infeasible: [{
     place: { type: String },
     reason: { type: String }
   }],
   isActive: { type: Boolean, default: true },
   timeline: [{
+    id: { type: String },
     day: { type: Number, default: 1 },
+    date: { type: String },
     time: { type: String, required: true },
     endTime: { type: String },
+    duration: { type: Number, default: 60 },
     place: { type: String, required: true },
     purpose: { type: String, required: true },
     reason: { type: String, required: true },
     travelTimeFromPrevious: { type: String },
+    distanceFromPrevious: { type: Number, default: 0 },
     isOpen: { type: Boolean, default: true },
+    isPinned: { type: Boolean, default: false },
+    pinnedTime: { type: String },
+    isOvernight: { type: Boolean, default: false },
+    isReturnArrival: { type: Boolean, default: false },
+    waitTime: { type: String },
+    activityStartTime: { type: String },
     warning: { type: String },
     lat: { type: Number },
     lng: { type: Number },

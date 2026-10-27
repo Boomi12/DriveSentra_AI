@@ -9,7 +9,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const JWT_SECRET = process.env.JWT_SECRET || 'guardiandrive_jwt_secret_key_123';
+    const JWT_SECRET = process.env.JWT_SECRET || 'drivesentra_jwt_secret_key_123';
     
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.id).select('-password');

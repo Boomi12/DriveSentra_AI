@@ -12,6 +12,10 @@ const Login = () => {
   });
   
   const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({
+    email: false,
+    password: false
+  });
   const [isFormValid, setIsFormValid] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,10 +53,23 @@ const Login = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setTouched((prev) => ({ ...prev, [name]: true }));
+  };
+
+  const handleBlur = (e) => {
+    const { name } = e.target;
+    setTouched((prev) => ({ ...prev, [name]: true }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Set all fields to touched on submission attempt
+    setTouched({
+      email: true,
+      password: true
+    });
+
     if (!isFormValid) return;
 
     setLoading(true);
@@ -92,8 +109,8 @@ const Login = () => {
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-10 animate-fade-in">
       <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-md border border-purple-500/20 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -ml-10 -mt-10"></div>
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mb-10"></div>
+        <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -ml-10 -mt-10 pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mb-10 pointer-events-none"></div>
 
         <div className="flex flex-col items-center mb-8">
           <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20 mb-3">
@@ -102,7 +119,7 @@ const Login = () => {
           <h2 className="text-2xl font-extrabold text-white tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
             Welcome Back
           </h2>
-          <p className="text-xs text-slate-400 mt-1">Sign in to monitor your GuardianDrive AI twins</p>
+          <p className="text-xs text-slate-400 mt-1">Sign in to monitor your DriveSentra AI twins</p>
         </div>
 
         {submitError && (
@@ -123,13 +140,14 @@ const Login = () => {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="john@example.com"
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-650 focus:outline-none transition-colors ${
-                  errors.email ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
+                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                  errors.email && touched.email ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
                 }`}
               />
             </div>
-            {errors.email && <span className="text-[10px] text-red-400 mt-1 block">{errors.email}</span>}
+            {errors.email && touched.email && <span className="text-[10px] text-red-400 mt-1 block">{errors.email}</span>}
           </div>
 
           <div>
@@ -143,18 +161,19 @@ const Login = () => {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="••••••••"
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-650 focus:outline-none transition-colors ${
-                  errors.password ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
+                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                  errors.password && touched.password ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
                 }`}
               />
             </div>
-            {errors.password && <span className="text-[10px] text-red-400 mt-1 block">{errors.password}</span>}
+            {errors.password && touched.password && <span className="text-[10px] text-red-400 mt-1 block">{errors.password}</span>}
           </div>
 
           <PrimaryButton
             type="submit"
-            disabled={!isFormValid}
+            disabled={loading}
             loading={loading}
             className="mt-6"
           >
@@ -164,9 +183,12 @@ const Login = () => {
 
         <p className="text-xs text-slate-500 text-center mt-6">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-purple-400 hover:text-purple-300 font-bold">
+          <span 
+            onClick={() => navigate('/signup')} 
+            className="text-purple-400 hover:text-purple-300 font-bold cursor-pointer"
+          >
             Sign Up
-          </Link>
+          </span>
         </p>
       </div>
     </div>

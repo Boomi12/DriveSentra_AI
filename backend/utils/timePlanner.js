@@ -398,51 +398,87 @@ export const WORLDWIDE_DESTINATIONS = {
 
 // Calculate travel time between two waypoints
 export function getTravelTime(fromPlace, toPlace, source, destination) {
-  const f = fromPlace?.toLowerCase().trim();
-  const t = toPlace?.toLowerCase().trim();
-  const src = source?.toLowerCase().trim() || "bangalore";
-  const dst = destination?.toLowerCase().trim() || "mysore";
+  const f = (fromPlace || '').toLowerCase().trim();
+  const t = (toPlace || '').toLowerCase().trim();
+  const src = (source || 'bangalore').toLowerCase().trim();
+  const dst = (destination || 'mysore').toLowerCase().trim();
 
   if (!f || !t) return 0;
   if (f === t) return 0;
 
-  const isFromSrc = f === src || f.includes("start from");
-  const isToDst = t === dst || t.includes("arrive at") || t.includes("arrive in");
+  const isFromSrc = f === src || f.includes(src) || f.includes("start from") || f.includes("depart from " + src);
+  const isToDst = t === dst || t.includes(dst) || t.includes("arrive at " + dst) || t.includes("arrive in " + dst);
 
-  // Major highway routes
-  if (isFromSrc && isToDst) {
-    if (src.includes("bangalore") && dst.includes("mysore")) return 195; // 3h 15m
-    if (src.includes("bangalore") && dst.includes("coorg")) return 330; // 5h 30m
-    if (src.includes("bangalore") && dst.includes("ooty")) return 375; // 6h 15m
-    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 285; // 4h 45m
-    if (src.includes("bangalore") && dst.includes("chennai")) return 360; // 6h 0m
-    if (src.includes("delhi") && dst.includes("agra")) return 240;
-    if (src.includes("paris") && dst.includes("london")) return 360;
-    if (src.includes("new york") && dst.includes("washington")) return 270;
-    return 180; // default 3h
-  }
+  const isFromDst = f === dst || f.includes(dst) || f.includes("check out from") || f.includes("depart from " + dst);
+  const isToSrc = t === src || t.includes(src) || t.includes("arrive at " + src) || t.includes("return to " + src);
 
-  // Highway stop checks
+  // Highway stop identifier
   const isHighwayStop = (name) => {
-    return name.includes("highway") || name.includes("plaza") || name.includes("food court") || name.includes("coffee day") || name.includes("spices hub") || name.includes("shell select") || name.includes("a2b") || name.includes("rest area");
+    return name.includes("highway") || name.includes("plaza") || name.includes("food court") || 
+           name.includes("coffee day") || name.includes("spices hub") || name.includes("shell select") || 
+           name.includes("a2b") || name.includes("rest area") || name.includes("rest stop") ||
+           name.includes("maddur") || name.includes("kamath") || name.includes("expressway");
   };
 
+  // Major highway routes (Bidirectional: Onward or Return)
+  if ((isFromSrc && isToDst) || (isFromDst && isToSrc)) {
+    if ((src.includes("bangalore") && dst.includes("mysore")) || (src.includes("mysore") && dst.includes("bangalore"))) return 120; // 2h 0m
+    if ((src.includes("bangalore") && dst.includes("coorg")) || (src.includes("coorg") && dst.includes("bangalore"))) return 270; // 4h 30m
+    if ((src.includes("bangalore") && dst.includes("ooty")) || (src.includes("ooty") && dst.includes("bangalore"))) return 330; // 5h 30m
+    if ((src.includes("bangalore") && dst.includes("chikkamagaluru")) || (src.includes("chikkamagaluru") && dst.includes("bangalore"))) return 240; // 4h 0m
+    if ((src.includes("bangalore") && dst.includes("chennai")) || (src.includes("chennai") && dst.includes("bangalore"))) return 300; // 5h 0m
+    if ((src.includes("delhi") && dst.includes("agra")) || (src.includes("agra") && dst.includes("delhi"))) return 210;
+    if ((src.includes("paris") && dst.includes("london")) || (src.includes("london") && dst.includes("paris"))) return 330;
+    if ((src.includes("new york") && dst.includes("washington")) || (src.includes("washington") && dst.includes("new york"))) return 240;
+    return 150; // default 2.5h
+  }
+
+  // Onward Highway stop checks
   if (isFromSrc && isHighwayStop(t)) {
-    if (src.includes("bangalore") && dst.includes("mysore")) return 90; 
-    if (src.includes("bangalore") && dst.includes("coorg")) return 150;
-    if (src.includes("bangalore") && dst.includes("ooty")) return 180;
-    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 130;
-    if (src.includes("bangalore") && dst.includes("chennai")) return 160;
-    return 90;
+    if (src.includes("bangalore") && dst.includes("mysore")) return 60; 
+    if (src.includes("bangalore") && dst.includes("coorg")) return 140;
+    if (src.includes("bangalore") && dst.includes("ooty")) return 170;
+    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 120;
+    if (src.includes("bangalore") && dst.includes("chennai")) return 150;
+    return 60;
   }
 
   if (isHighwayStop(f) && isToDst) {
-    if (src.includes("bangalore") && dst.includes("mysore")) return 105; 
-    if (src.includes("bangalore") && dst.includes("coorg")) return 180;
-    if (src.includes("bangalore") && dst.includes("ooty")) return 195;
-    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 155;
-    if (src.includes("bangalore") && dst.includes("chennai")) return 200;
-    return 90;
+    if (src.includes("bangalore") && dst.includes("mysore")) return 60; 
+    if (src.includes("bangalore") && dst.includes("coorg")) return 140;
+    if (src.includes("bangalore") && dst.includes("ooty")) return 170;
+    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 120;
+    if (src.includes("bangalore") && dst.includes("chennai")) return 150;
+    return 60;
+  }
+
+  // Return Leg Highway stop checks
+  if (isFromDst && isHighwayStop(t)) {
+    if (src.includes("bangalore") && dst.includes("mysore")) return 60; 
+    if (src.includes("bangalore") && dst.includes("coorg")) return 140;
+    if (src.includes("bangalore") && dst.includes("ooty")) return 170;
+    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 120;
+    if (src.includes("bangalore") && dst.includes("chennai")) return 150;
+    return 60;
+  }
+
+  if (isHighwayStop(f) && isToSrc) {
+    if (src.includes("bangalore") && dst.includes("mysore")) return 60; 
+    if (src.includes("bangalore") && dst.includes("coorg")) return 140;
+    if (src.includes("bangalore") && dst.includes("ooty")) return 170;
+    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 120;
+    if (src.includes("bangalore") && dst.includes("chennai")) return 150;
+    return 60;
+  }
+
+  // Destination area back to Source (Return journey)
+  if (isToSrc && !isHighwayStop(f)) {
+    return getTravelTime(dst, src, src, dst);
+  }
+
+  // Source to Destination area (Onward journey)
+  if (isFromSrc && !isHighwayStop(t)) {
+    return getTravelTime(src, dst, src, dst);
   }
 
   // Travel within destination local network
@@ -469,14 +505,80 @@ export function getHaversineDistance(lat1, lon1, lat2, lon2) {
 
 // Travel time calculation utilizing absolute coordinates if present
 export function getTravelTimeWithCoords(fromPlace, toPlace, source, destination, fromCoords, toCoords) {
-  if (fromCoords && toCoords && fromCoords.lat !== undefined && fromCoords.lng !== undefined && toCoords.lat !== undefined && toCoords.lng !== undefined) {
-    const dist = getHaversineDistance(fromCoords.lat, fromCoords.lng, toCoords.lat, toCoords.lng);
-    const isHighway = fromPlace.toLowerCase().includes("start") || fromPlace.toLowerCase().includes("highway") || fromPlace.toLowerCase().includes("rest") || toPlace.toLowerCase().includes("highway") || toPlace.toLowerCase().includes("rest") || toPlace.toLowerCase().includes("arrive");
-    const speed = isHighway ? 75 : 45; // average speed in km/h
+  const f = (fromPlace || "").toLowerCase().trim();
+  const t = (toPlace || "").toLowerCase().trim();
+  const src = (source || "").toLowerCase().trim();
+  const dst = (destination || "").toLowerCase().trim();
+
+  // Check known major corridors first
+  const isFromSrc = f === src || f.includes(src) || f.includes("start from") || f.includes("depart from " + src);
+  const isToDst = t === dst || t.includes(dst) || t.includes("arrive at " + dst) || t.includes("arrive in " + dst);
+  const isFromDst = f === dst || f.includes(dst) || f.includes("check out from") || f.includes("depart from " + dst);
+  const isToSrc = t === src || t.includes(src) || t.includes("arrive at " + src) || t.includes("return to " + src);
+
+  if ((isFromSrc && isToDst) || (isFromDst && isToSrc)) {
+    return getTravelTime(fromPlace, toPlace, source, destination);
+  }
+
+  const getCityCoords = (name) => {
+    const lower = (name || '').toLowerCase();
+    if (lower.includes('mysore') || lower.includes('mysuru')) return { lat: 12.2958, lng: 76.6394 };
+    if (lower.includes('bangalore') || lower.includes('bengaluru')) return { lat: 12.9716, lng: 77.5946 };
+    if (lower.includes('ooty')) return { lat: 11.4102, lng: 76.6950 };
+    if (lower.includes('coorg') || lower.includes('madikeri')) return { lat: 12.4244, lng: 75.7382 };
+    if (lower.includes('chikkamagaluru')) return { lat: 13.3161, lng: 75.7720 };
+    if (lower.includes('chennai')) return { lat: 13.0827, lng: 80.2707 };
+    if (lower.includes('delhi')) return { lat: 28.6139, lng: 77.2090 };
+    if (lower.includes('agra')) return { lat: 27.1767, lng: 78.0081 };
+    return { lat: 12.9716, lng: 77.5946 };
+  };
+
+  let resolvedFromCoords = fromCoords;
+  let resolvedToCoords = toCoords;
+  if (!resolvedFromCoords || resolvedFromCoords.lat === undefined) {
+    const s = getPlaceSpecs(fromPlace);
+    if (s && s.lat) resolvedFromCoords = { lat: s.lat, lng: s.lng };
+    else if (isFromSrc) resolvedFromCoords = getCityCoords(source);
+    else if (isFromDst) resolvedFromCoords = getCityCoords(destination);
+  }
+  if (!resolvedToCoords || resolvedToCoords.lat === undefined) {
+    const s = getPlaceSpecs(toPlace);
+    if (s && s.lat) resolvedToCoords = { lat: s.lat, lng: s.lng };
+    else if (isToSrc) resolvedToCoords = getCityCoords(source);
+    else if (isToDst) resolvedToCoords = getCityCoords(destination);
+  }
+
+  if (resolvedFromCoords && resolvedToCoords && resolvedFromCoords.lat !== undefined && resolvedFromCoords.lng !== undefined && resolvedToCoords.lat !== undefined && resolvedToCoords.lng !== undefined) {
+    const dist = getHaversineDistance(resolvedFromCoords.lat, resolvedFromCoords.lng, resolvedToCoords.lat, resolvedToCoords.lng);
+    const isHighway = f.includes("start") || f.includes("highway") || f.includes("rest") || 
+                      f.includes("arrive") || t.includes("highway") || t.includes("rest") || 
+                      t.includes("arrive") || isFromSrc || isToSrc || dist > 40;
+    const speed = isHighway ? 70 : 40; // average speed in km/h
     const mins = (dist / speed) * 60;
     return Math.max(10, Math.round(mins)); // minimum 10 minutes transit
   }
   return getTravelTime(fromPlace, toPlace, source, destination);
+}
+
+// Estimated driving distance in km between source and destination
+export function getRouteEstimatedDistanceKm(source, destination, sourceCoords, destinationCoords) {
+  const s = (source || "").toLowerCase().trim();
+  const d = (destination || "").toLowerCase().trim();
+  if ((s.includes("bangalore") && d.includes("mysore")) || (d.includes("bangalore") && s.includes("mysore"))) return 145;
+  if ((s.includes("bangalore") && d.includes("coorg")) || (d.includes("bangalore") && s.includes("coorg"))) return 250;
+  if ((s.includes("bangalore") && d.includes("ooty")) || (d.includes("bangalore") && s.includes("ooty"))) return 275;
+  if ((s.includes("bangalore") && d.includes("chikkamagaluru")) || (d.includes("bangalore") && s.includes("chikkamagaluru"))) return 240;
+  if ((s.includes("bangalore") && d.includes("chennai")) || (d.includes("bangalore") && s.includes("chennai"))) return 345;
+  if ((s.includes("delhi") && d.includes("agra")) || (d.includes("agra") && s.includes("delhi"))) return 230;
+  if ((s.includes("paris") && d.includes("london")) || (d.includes("london") && s.includes("paris"))) return 450;
+  if ((s.includes("new york") && d.includes("washington")) || (d.includes("washington") && s.includes("new york"))) return 360;
+
+  if (sourceCoords && destinationCoords && sourceCoords.lat !== undefined && destinationCoords.lat !== undefined) {
+    const directKm = getHaversineDistance(sourceCoords.lat, sourceCoords.lng, destinationCoords.lat, destinationCoords.lng);
+    // Driving distance is typically ~1.25x - 1.3x straight-line distance
+    return Math.round(directKm * 1.3);
+  }
+  return 150;
 }
 
 // Format duration to string
@@ -670,11 +772,12 @@ export async function generateAccurateItinerary(input) {
     destinationPlaceId,
     sourceAddress,
     destinationAddress,
-    tripMode = 'One Way',
-    needStay = false
+    tripMode = 'Round Trip',
+    needStay = false,
+    overnightHalt
   } = input;
 
-  const key = destination.toLowerCase().trim();
+  const key = (destination || "").toLowerCase().trim();
   const allDestData = { ...mockDestinations, ...WORLDWIDE_DESTINATIONS };
   
   let destData = defaultMockDestination;
@@ -730,6 +833,71 @@ export async function generateAccurateItinerary(input) {
     }
   }
 
+  // -------------------------------------------------------------
+  // FEASIBILITY VALIDATION BEFORE GENERATION
+  // -------------------------------------------------------------
+  const estimatedOneWayKm = getRouteEstimatedDistanceKm(source, destination, sourceCoords, destinationCoords);
+  const oneWayTransitMins = getTravelTimeWithCoords(source, destination, source, destination, sourceCoords, destinationCoords);
+  const isRoundTrip = tripMode !== 'One Way';
+  const effectiveRoundTripKm = isRoundTrip ? estimatedOneWayKm * 2 : estimatedOneWayKm;
+  const effectiveTransitMins = isRoundTrip ? oneWayTransitMins * 2 : oneWayTransitMins;
+
+  // Feasibility Check for 1-Day Trip
+  if (durationDays === 1 && isRoundTrip) {
+    const startMins = timeToMinutes(startTime);
+    const safeCutoffMins = timeToMinutes("10:30 PM"); // 1350 mins from midnight
+    const availableWindowMins = safeCutoffMins - startMins;
+
+    const outboundRestMins = oneWayTransitMins >= 90 ? 30 : 0;
+    const returnRestMins = oneWayTransitMins >= 90 ? 30 : 0;
+    const lunchMins = 45;
+    const minSightseeingMins = 60;
+    const minRequiredMins = effectiveTransitMins + outboundRestMins + returnRestMins + lunchMins + minSightseeingMins;
+
+    // Daily safe driving threshold is 600 mins (10 hours pure driving)
+    if (effectiveTransitMins > 600 || minRequiredMins > availableWindowMins) {
+      const reason = `A 1-day round trip from ${source} to ${destination} is not feasible. The total round-trip driving time alone is approximately ${formatMinutes(effectiveTransitMins)} (~${effectiveRoundTripKm} km), which exceeds safe daily driving limits (max 10 hours) and leaves insufficient time for required rest breaks, meals, sightseeing, and a safe return before 10:30 PM.`;
+      const alternatives = [
+        `Increase trip duration to 2 or 3 days for a comfortable round trip with an overnight halt.`,
+        `Choose a closer destination within 150 km (such as Mysore, Ramanagara, or Nandi Hills) that fits within Day 1.`,
+        `If extending to 2 days, start earlier (e.g., 06:00 AM) to maximize daytime sightseeing.`
+      ];
+
+      const infeasibleArr = [];
+      infeasibleArr.isFeasible = false;
+      infeasibleArr.reason = reason;
+      infeasibleArr.alternatives = alternatives;
+      infeasibleArr.infeasible = (destData.attractions || []).map(a => ({
+        place: a.name,
+        reason: `Cannot be scheduled: 1-day round trip to ${destination} is infeasible due to round-trip driving distance (~${effectiveRoundTripKm} km).`
+      }));
+      return infeasibleArr;
+    }
+  }
+
+  // Feasibility Check for 2-Day Trip
+  if (durationDays === 2 && isRoundTrip) {
+    // 2-day safe driving threshold is 1200 mins (20 hours total pure driving across 2 days)
+    if (effectiveTransitMins > 1200) {
+      const reason = `A 2-day round trip between ${source} and ${destination} is not feasible. The total round-trip driving time of ${formatMinutes(effectiveTransitMins)} (~${effectiveRoundTripKm} km) exceeds safe 2-day driving limits.`;
+      const alternatives = [
+        `Extend your trip duration to 4 or more days to travel safely.`,
+        `Select a closer regional destination within 350 km.`,
+        `Consider flight or train travel rather than self-driving for this long-distance route.`
+      ];
+
+      const infeasibleArr = [];
+      infeasibleArr.isFeasible = false;
+      infeasibleArr.reason = reason;
+      infeasibleArr.alternatives = alternatives;
+      infeasibleArr.infeasible = [];
+      return infeasibleArr;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // TIMELINE INITIALIZATION & DRIVETRAIN TRACKING
+  // -------------------------------------------------------------
   const timeline = [];
   const infeasible = [];
   const isEV = vehicleType?.toUpperCase() === 'EV';
@@ -772,68 +940,81 @@ export async function generateAccurateItinerary(input) {
 
   let currentDay = 1;
   let currentTime = timeToMinutes(startTime);
-  
-  const hotel = destData.haltingPlaces?.[0]?.name || "Resort & Spa";
-  const hotelSpecs = getPlaceSpecs(hotel);
-  const hotelCoords = { lat: hotelSpecs.lat, lng: hotelSpecs.lng };
+
+  // Overnight halt location resolution (respects input.overnightHalt for Test D)
+  const resolvedOvernightHalt = overnightHalt || destData.haltingPlaces?.[0]?.name || "Resort & Spa";
+  const haltSpecs = getPlaceSpecs(resolvedOvernightHalt);
+  const haltCoords = {
+    lat: haltSpecs.lat || destinationCoords?.lat || 12.2980,
+    lng: haltSpecs.lng || destinationCoords?.lng || 76.6660
+  };
   
   let currentLoc = source;
-  let currentCoords = sourceCoords;
+  let currentCoords = sourceCoords || { lat: 12.9716, lng: 77.5946 };
 
   // Closure helper to add a waypoint, track vehicle range, and insert fuel/charging stops dynamically
   async function travelToPlace(targetName, purpose, reasonText, visitDuration, targetSpecs) {
-    const targetCoords = { 
-      lat: targetSpecs?.lat || destinationCoords?.lat || 12.2958, 
-      lng: targetSpecs?.lng || destinationCoords?.lng || 76.6394 
-    };
-    let transit = getTravelTimeWithCoords(currentLoc, targetName, source, destination, currentCoords, targetCoords);
-    const dist = transit; // 1 min = 1 km
+    const isSourceLoc = targetName.includes(`Arrive at ${source}`) || targetName.includes(`Return to ${source}`) || targetName === source;
+    const isHaltLoc = targetName.includes(resolvedOvernightHalt);
 
-    // Check range constraint
+    let defaultCoords = destinationCoords || { lat: 12.2958, lng: 76.6394 };
+    if (isSourceLoc) {
+      defaultCoords = sourceCoords || { lat: 12.9716, lng: 77.5946 };
+    } else if (isHaltLoc) {
+      defaultCoords = haltCoords;
+    }
+
+    const targetCoords = { 
+      lat: targetSpecs?.lat !== undefined ? targetSpecs.lat : defaultCoords?.lat, 
+      lng: targetSpecs?.lng !== undefined ? targetSpecs.lng : defaultCoords?.lng 
+    };
+
+    let transit = getTravelTimeWithCoords(currentLoc, targetName, source, destination, currentCoords, targetCoords);
+    const dist = transit; // 1 min ~ 1 km
+
+    // Check vehicle range constraint (insert EV Charging or Fuel stop if remaining range < 50 km)
     if (activeRange - dist < 50) {
-      // Find a charger/refuel stop
+      const isReturnLeg = isSourceLoc || currentDay > 1;
       const station = destData.fuelChargingStops?.[0] || { name: isEV ? "Tata Power EV Fast Charger" : "HP Fuel Station" };
       const stationSpecs = getPlaceSpecs(station.name);
       const stationCoords = { 
-        lat: stationSpecs.lat || destinationCoords?.lat || 12.2958, 
-        lng: stationSpecs.lng || destinationCoords?.lng || 76.6394 
+        lat: stationSpecs.lat || (isReturnLeg ? 12.5850 : destinationCoords?.lat) || 12.2958, 
+        lng: stationSpecs.lng || (isReturnLeg ? 77.0410 : destinationCoords?.lng) || 76.6394 
       };
       
-      // Travel from current location to station
       const transitToStation = getTravelTimeWithCoords(currentLoc, station.name, source, destination, currentCoords, stationCoords);
       currentTime += transitToStation;
       activeRange -= transitToStation;
 
-      // Insert stop
+      const stopDuration = isEV ? 35 : 15;
       timeline.push({
         day: currentDay,
         time: minutesToTime(currentTime),
-        endTime: minutesToTime(currentTime + (isEV ? 30 : 10)),
-        place: station.name,
-        purpose: isEV ? "EV Charging" : "Refuel Stop",
-        reason: `Stop required: Remaining range is critically low (${Math.round(activeRange)} km). Recharging/Refueling is necessary to prevent route breakdown risk on the way to ${targetName}.`,
+        endTime: minutesToTime(currentTime + stopDuration),
+        duration: stopDuration,
+        place: isReturnLeg ? `${station.name} (Return Leg)` : station.name,
+        purpose: isEV ? "EV Fast Charging" : "Refuel Stop",
+        reason: `Stop required: Remaining range is critically low (${Math.round(Math.max(activeRange, 15))} km). Recharging/Refueling is necessary to prevent route breakdown risk on the journey to ${targetName}.`,
         travelTimeFromPrevious: formatMinutes(transitToStation),
         isOpen: true,
         warning: null,
         lat: stationCoords.lat,
         lng: stationCoords.lng,
-        placeId: stationSpecs.placeId || `mock_station_${station.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+        placeId: stationSpecs.placeId || `station_${station.name.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
         address: stationSpecs.address || station.name
       });
 
-      currentTime += (isEV ? 30 : 10);
+      currentTime += stopDuration;
       const fullRangeLimit = isEV 
         ? (mileageOrRange <= 150 ? 340 : mileageOrRange) 
         : (mileageOrRange <= 300 ? 580 : mileageOrRange);
       activeRange = isEV ? fullRangeLimit * 0.9 : fullRangeLimit;
 
-      // Travel from station to target destination
-      currentLoc = station.name;
+      currentLoc = isReturnLeg ? `${station.name} (Return Leg)` : station.name;
       currentCoords = stationCoords;
       transit = getTravelTimeWithCoords(currentLoc, targetName, source, destination, currentCoords, targetCoords);
     }
 
-    // Travel to target
     currentTime += transit;
     activeRange -= transit;
 
@@ -841,8 +1022,11 @@ export async function generateAccurateItinerary(input) {
       day: currentDay,
       time: minutesToTime(currentTime),
       endTime: minutesToTime(currentTime + visitDuration),
+      duration: visitDuration,
       place: targetName,
       purpose,
+      isReturnArrival: purpose === 'Return Arrival' || isSourceLoc,
+      isOvernight: purpose === 'Overnight Stay' || purpose === 'Resort Check-in',
       reason: reasonText,
       travelTimeFromPrevious: formatMinutes(transit),
       isOpen: purpose === 'Sightseeing' 
@@ -851,8 +1035,8 @@ export async function generateAccurateItinerary(input) {
       warning: null,
       lat: targetCoords.lat,
       lng: targetCoords.lng,
-      placeId: targetSpecs?.placeId || `mock_${purpose.toLowerCase().replace(/[^a-z0-9]/g, '')}_${targetName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-      address: targetSpecs?.address || `${targetName}, ${destination}`
+      placeId: targetSpecs?.placeId || `${purpose.toLowerCase().replace(/[^a-z0-9]/g, '')}_${targetName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+      address: targetSpecs?.address || (isSourceLoc ? (sourceAddress || source) : `${targetName}, ${destination}`)
     });
 
     currentTime += visitDuration;
@@ -860,241 +1044,441 @@ export async function generateAccurateItinerary(input) {
     currentCoords = targetCoords;
   }
 
-  // 3. Generate Daily Timeline Schedules
-  for (let day = 1; day <= durationDays; day++) {
-    currentDay = day;
-    if (day === 1) {
-      currentTime = timeToMinutes(startTime);
+  // -------------------------------------------------------------
+  // GENERATE SCHEDULE: ONE-DAY ROUND TRIP
+  // -------------------------------------------------------------
+  if (durationDays === 1) {
+    currentDay = 1;
+    currentTime = timeToMinutes(startTime);
 
-      // Start from Source
-      timeline.push({
-        day: 1,
-        time: startTime,
-        endTime: minutesToTime(currentTime),
-        place: source.startsWith("Start from") ? source : `Start from ${source}`,
-        purpose: "Departure",
-        reason: "Begin your road trip journey with optimized twin safety route mapping.",
-        travelTimeFromPrevious: "0m",
-        isOpen: true,
-        warning: null,
+    // 1. Start from Source
+    timeline.push({
+      day: 1,
+      time: startTime,
+      endTime: startTime,
+      place: source.startsWith("Start from") ? source : `Start from ${source}`,
+      purpose: "Departure",
+      reason: "Begin your road trip journey with optimized multi-agent route mapping.",
+      travelTimeFromPrevious: "0m",
+      isOpen: true,
+      warning: null,
+      lat: sourceCoords?.lat,
+      lng: sourceCoords?.lng,
+      placeId: sourcePlaceId,
+      address: sourceAddress || source
+    });
+
+    // 2. Outbound rest stop (if drive >= 90 mins)
+    if (oneWayTransitMins >= 90) {
+      const restStopName = destData.restStops?.[0]?.name || "Highway Nest Food Plaza";
+      const restStopSpecs = getPlaceSpecs(restStopName);
+      await travelToPlace(restStopName, "Rest & Coffee", "Stop for refreshments and clean amenities. Essential for safety to prevent fatigue after highway driving.", 30, restStopSpecs);
+    }
+
+    // 3. Arrive at destination
+    await travelToPlace(`Arrive at ${destination}`, "Arrival", `Arrive safely at your destination city ${destination}.`, 0, {
+      lat: destinationCoords?.lat,
+      lng: destinationCoords?.lng,
+      placeId: destinationPlaceId,
+      address: destinationAddress || destination
+    });
+
+    // 4. Lunch break in destination (if arriving before 02:30 PM)
+    if (currentTime < timeToMinutes("02:30 PM")) {
+      const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
+      const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
+      await travelToPlace(preferredRestaurant, "Lunch Break", `Enjoy regional dining at ${preferredRestaurant} in ${destination}.`, restaurantSpecs.duration || 45, restaurantSpecs);
+    }
+
+    // 5. Sightseeing in destination (ensuring return can finish comfortably before 10:00 PM)
+    const returnTransitEst = getTravelTimeWithCoords(destination, source, source, destination, destinationCoords, sourceCoords);
+    const returnRestEst = returnTransitEst >= 90 ? 30 : 0;
+    const safeCutoff = timeToMinutes("10:00 PM"); // 22:00 allows room for dinner, return drive & charging
+
+    let day1AttractionsScheduled = 0;
+    for (let i = 0; i < attractionPool.length; i++) {
+      if (day1AttractionsScheduled >= maxPerDay) break;
+
+      const att = attractionPool[i];
+      const specs = getPlaceSpecs(att.name);
+      const attCoords = { lat: specs.lat, lng: specs.lng };
+      const transitToAtt = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
+      const attArrival = currentTime + transitToAtt;
+      const attEnd = attArrival + (specs.duration || 60);
+
+      // Transit from this sight back to source, accounting for complete return drive, rest, dinner, and EV charging
+      const transitFromAttToSource = getTravelTimeWithCoords(att.name, source, source, destination, attCoords, sourceCoords);
+      const chargingBuffer = isEV ? 75 : 20; // transit to charger + charging time
+      const expectedFinishTime = attEnd + transitFromAttToSource + returnRestEst + chargingBuffer + 45;
+
+      if (expectedFinishTime > safeCutoff) {
+        infeasible.push({
+          place: att.name,
+          reason: `${att.name} cannot fit on Day 1: required return journey to ${source} (${formatMinutes(transitFromAttToSource + returnRestEst + chargingBuffer)}) would exceed the 10:30 PM safe return cutoff.`
+        });
+        continue;
+      }
+
+      const status = getPlaceTimeStatus(att.name, minutesToTime(attArrival));
+      if (status === 'OPEN' || status === 'LIMITED') {
+        await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration || 60, specs);
+        day1AttractionsScheduled++;
+        attractionPool.splice(i, 1);
+        i--;
+      } else {
+        infeasible.push({
+          place: att.name,
+          reason: `${att.name} is closed at ${minutesToTime(attArrival)}. Opening hours: ${specs.open || "09:00 AM"} - ${specs.close || "06:00 PM"}.`
+        });
+      }
+    }
+
+    // 6. Dinner break if time allows before return drive
+    const currentReturnTransit = getTravelTimeWithCoords(currentLoc, source, source, destination, currentCoords, sourceCoords);
+    if (currentTime < timeToMinutes("08:00 PM") && (currentTime + 45 + currentReturnTransit + returnRestEst <= safeCutoff)) {
+      const preferredRestaurant = destData.restaurants?.[1]?.name || destData.restaurants?.[0]?.name;
+      if (preferredRestaurant) {
+        const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
+        await travelToPlace(preferredRestaurant, "Dinner Break", `Dinner stop at ${preferredRestaurant} before commencing the evening return drive.`, 40, restaurantSpecs);
+      }
+    }
+
+    // 7. Complete Return Journey to Source on Day 1!
+    if (isRoundTrip) {
+      if (returnTransitEst >= 90) {
+        const returnRestStop = "Highway Express Rest Stop (Return)";
+        await travelToPlace(returnRestStop, "Rest & Coffee", "Essential highway break on the return leg to reduce driving fatigue and maintain alertness.", 30, {
+          lat: 12.5850,
+          lng: 77.0410,
+          address: `${source} - ${destination} Expressway`
+        });
+      }
+
+      // Final Return Arrival at Source on Day 1
+      await travelToPlace(`Arrive at ${source}`, "Return Arrival", `Complete your road trip and safely arrive back at your original departure location (${source}).`, 0, {
         lat: sourceCoords?.lat,
         lng: sourceCoords?.lng,
         placeId: sourcePlaceId,
         address: sourceAddress || source
       });
-
-      // Travel to destination with a rest stop halfway
-      const restStopName = destData.restStops?.[0]?.name || "Highway Nest Food Plaza";
-      const restStopSpecs = getPlaceSpecs(restStopName);
-      
-      await travelToPlace(restStopName, "Rest & Coffee", `Stop for refreshments and clean amenities. Essential for safety to prevent fatigue after driving.`, restStopSpecs.duration, restStopSpecs);
-
-      // Arrive at destination
-      await travelToPlace(`Arrive at ${destination}`, "Arrival", `Arrive safely at your destination city ${destination} after driving.`, 0, {
+    } else {
+      timeline.push({
+        day: 1,
+        time: minutesToTime(currentTime),
+        endTime: minutesToTime(currentTime),
+        place: `End of Day at ${destination}`,
+        purpose: "Arrival",
+        reason: "Arrive at destination city. Your one-way road trip is successfully completed.",
+        travelTimeFromPrevious: "0m",
+        isOpen: true,
+        warning: null,
         lat: destinationCoords?.lat,
         lng: destinationCoords?.lng,
         placeId: destinationPlaceId,
         address: destinationAddress || destination
       });
+    }
+  }
 
-      // Lunch break inside destination (only if arriving before 2:30 PM)
-      if (currentTime < timeToMinutes("02:30 PM")) {
-        const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
-        const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-        await travelToPlace(preferredRestaurant, "Lunch Break", `Enjoy local cuisine at highly recommended place in ${destination}.`, restaurantSpecs.duration, restaurantSpecs);
+  // -------------------------------------------------------------
+  // GENERATE SCHEDULE: TWO-DAY ROUND TRIP
+  // -------------------------------------------------------------
+  else if (durationDays === 2) {
+    // --- DAY 1 ---
+    currentDay = 1;
+    currentTime = timeToMinutes(startTime);
+
+    // 1. Day 1 Departure
+    timeline.push({
+      day: 1,
+      time: startTime,
+      endTime: startTime,
+      place: source.startsWith("Start from") ? source : `Start from ${source}`,
+      purpose: "Departure",
+      reason: "Begin Day 1 of your multi-agent road trip journey.",
+      travelTimeFromPrevious: "0m",
+      isOpen: true,
+      warning: null,
+      lat: sourceCoords?.lat,
+      lng: sourceCoords?.lng,
+      placeId: sourcePlaceId,
+      address: sourceAddress || source
+    });
+
+    // 2. Outbound rest stop if transit >= 90 mins
+    if (oneWayTransitMins >= 90) {
+      const restStopName = destData.restStops?.[0]?.name || "Highway Nest Food Plaza";
+      const restStopSpecs = getPlaceSpecs(restStopName);
+      await travelToPlace(restStopName, "Rest & Coffee", "Stop for refreshments and clean amenities on the onward journey.", 30, restStopSpecs);
+    }
+
+    // 3. Arrive at destination
+    await travelToPlace(`Arrive at ${destination}`, "Arrival", `Arrive safely at your destination city ${destination}.`, 0, {
+      lat: destinationCoords?.lat,
+      lng: destinationCoords?.lng,
+      placeId: destinationPlaceId,
+      address: destinationAddress || destination
+    });
+
+    // 4. Day 1 Lunch Break
+    if (currentTime < timeToMinutes("02:30 PM")) {
+      const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
+      const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
+      await travelToPlace(preferredRestaurant, "Lunch Break", `Enjoy regional dining at ${preferredRestaurant} in ${destination}.`, restaurantSpecs.duration || 45, restaurantSpecs);
+    }
+
+    // 5. Day 1 Sightseeing
+    let day1AttractionsScheduled = 0;
+    for (let i = 0; i < attractionPool.length; i++) {
+      if (day1AttractionsScheduled >= maxPerDay) break;
+
+      const att = attractionPool[i];
+      const specs = getPlaceSpecs(att.name);
+      const attCoords = { lat: specs.lat, lng: specs.lng };
+      const transitToAtt = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
+      const attArrival = currentTime + transitToAtt;
+
+      // Ensure day 1 attractions fit before 08:30 PM (before dinner & overnight check-in)
+      if (attArrival + (specs.duration || 60) > timeToMinutes("08:30 PM")) {
+        continue; // Keep in attractionPool for Day 2!
       }
 
-      // Day 1 attractions
-      let day1AttractionsScheduled = 0;
-      for (let i = 0; i < attractionPool.length; i++) {
-        if (day1AttractionsScheduled >= maxPerDay) break;
+      const status = getPlaceTimeStatus(att.name, minutesToTime(attArrival));
+      if (status === 'OPEN' || status === 'LIMITED') {
+        await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration || 60, specs);
+        day1AttractionsScheduled++;
+        attractionPool.splice(i, 1);
+        i--;
+      }
+    }
 
-        const att = attractionPool[i];
-        const specs = getPlaceSpecs(att.name);
-        const attCoords = { lat: specs.lat, lng: specs.lng };
-        const transit = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
-        const arrivalTime = currentTime + transit;
+    // 6. Day 1 Dinner Break
+    if (currentTime < timeToMinutes("09:30 PM")) {
+      const preferredRestaurant = destData.restaurants?.[1]?.name || destData.restaurants?.[0]?.name || "Local Dine";
+      const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
+      await travelToPlace(preferredRestaurant, "Dinner Break", `Dinner stop at ${preferredRestaurant}.`, 45, restaurantSpecs);
+    }
 
-        // Check if it fits before end of day for a 1-day trip
-        const travelToDest = getTravelTimeWithCoords(att.name, destination, source, destination, attCoords, destinationCoords);
-        const endDayTime = arrivalTime + specs.duration + travelToDest;
+    // 7. Day 1 Overnight Halt (Meaningful overnight stay, respects overnightHalt for Test D)
+    const haltDisplayName = resolvedOvernightHalt.includes("Stay") || resolvedOvernightHalt.includes("Hotel") || resolvedOvernightHalt.includes("Resort")
+      ? resolvedOvernightHalt
+      : `${resolvedOvernightHalt} Overnight Stay`;
+    await travelToPlace(haltDisplayName, "Overnight Stay", `Check into ${resolvedOvernightHalt} for overnight rest and recharge. Essential overnight halt before Day 2 journey.`, 600, haltSpecs);
 
-        if (durationDays === 1 && endDayTime > timeToMinutes("09:30 PM")) {
-          infeasible.push({
-            place: att.name,
-            reason: `${att.name} cannot fit: too far for a 1-day trip (would extend past 09:30 PM).`
-          });
-          attractionPool.splice(i, 1);
-          i--;
-          continue;
-        }
+    // --- DAY 2 ---
+    currentDay = 2;
+    currentTime = timeToMinutes("09:00 AM");
+    currentLoc = haltDisplayName;
+    currentCoords = haltCoords;
 
-        const status = getPlaceTimeStatus(att.name, minutesToTime(arrivalTime));
-        if (status === 'OPEN' || status === 'LIMITED') {
-          await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration, specs);
-          day1AttractionsScheduled++;
-          attractionPool.splice(i, 1);
-          i--;
-        } else {
-          let reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}.`;
-          const openTime = specs.open || specs.openTime || "09:00 AM";
-          const closeTime = specs.close || specs.closeTime || "06:00 PM";
-          if (status === 'CLOSED') {
-            reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}. Opening hours: ${openTime} - ${closeTime}.`;
-          } else if (status === 'NOT ENOUGH TIME') {
-            reasonMsg = `${att.name} has insufficient visit time at ${minutesToTime(arrivalTime)}. Minimum: ${specs.minDuration || 60}m. Closes at ${closeTime}.`;
-          }
-          infeasible.push({
-            place: att.name,
-            reason: reasonMsg
-          });
-        }
+    // Day 2 Checkout
+    timeline.push({
+      day: 2,
+      time: "09:00 AM",
+      endTime: "09:00 AM",
+      place: `Check out from ${resolvedOvernightHalt}`,
+      purpose: "Hotel Checkout",
+      reason: `Check out of ${resolvedOvernightHalt} and prepare for Day 2 exploration and return journey to ${source}.`,
+      travelTimeFromPrevious: "0m",
+      isOpen: true,
+      warning: null,
+      lat: haltCoords.lat,
+      lng: haltCoords.lng,
+      placeId: haltSpecs.placeId || `halt_${resolvedOvernightHalt.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+      address: haltSpecs.address || `${resolvedOvernightHalt}, ${destination}`
+    });
+
+    // Day 2 Morning Sightseeing (subject to return departure window)
+    const returnTransitEst = getTravelTimeWithCoords(currentLoc, source, source, destination, currentCoords, sourceCoords);
+    const returnRestEst = returnTransitEst >= 90 ? 30 : 0;
+    const safeDay2Cutoff = timeToMinutes("10:30 PM"); // Must return before 10:30 PM on Day 2
+
+    let day2AttractionsScheduled = 0;
+    for (let i = 0; i < attractionPool.length; i++) {
+      if (day2AttractionsScheduled >= Math.max(1, maxPerDay - 1)) break;
+
+      const att = attractionPool[i];
+      const specs = getPlaceSpecs(att.name);
+      const attCoords = { lat: specs.lat, lng: specs.lng };
+      const transitToAtt = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
+      const attArrival = currentTime + transitToAtt;
+      const attEnd = attArrival + (specs.duration || 60);
+
+      // Remaining return transit from this attraction to source
+      const transitToSource = getTravelTimeWithCoords(att.name, source, source, destination, attCoords, sourceCoords);
+      const expectedFinishTime = attEnd + 45 + returnRestEst + transitToSource; // 45m lunch + rest + drive
+
+      if (expectedFinishTime > safeDay2Cutoff) {
+        infeasible.push({
+          place: att.name,
+          reason: `${att.name} cannot fit on Day 2: required return journey to ${source} (${formatMinutes(transitToSource + returnRestEst)}) would exceed the Day 2 safe arrival cutoff.`
+        });
+        continue;
       }
 
-      // Optional Dinner
-      if (currentTime < timeToMinutes("09:30 PM")) {
-        const preferredRestaurant = destData.restaurants?.[1]?.name || destData.restaurants?.[0]?.name || "Local Dine";
-        const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-        await travelToPlace(preferredRestaurant, "Dinner Break", `Enjoy evening dinner at highly recommended place ${preferredRestaurant} in ${destination}.`, restaurantSpecs.duration, restaurantSpecs);
+      const status = getPlaceTimeStatus(att.name, minutesToTime(attArrival));
+      if (status === 'OPEN' || status === 'LIMITED') {
+        await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration || 60, specs);
+        day2AttractionsScheduled++;
+        attractionPool.splice(i, 1);
+        i--;
+      }
+    }
+
+    // Day 2 Lunch Break
+    if (currentTime < timeToMinutes("02:30 PM")) {
+      const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
+      const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
+      await travelToPlace(preferredRestaurant, "Lunch Break", `Lunch stop for local specialties before commencing return journey.`, 45, restaurantSpecs);
+    }
+
+    // Day 2 Return Journey
+    if (isRoundTrip) {
+      if (returnTransitEst >= 90) {
+        const returnRestStop = "Highway Express Rest Stop (Return)";
+        await travelToPlace(returnRestStop, "Rest & Coffee", "Essential highway break on the Day 2 return journey to maintain driver alertness.", 30, {
+          lat: 12.5850,
+          lng: 77.0410,
+          address: `${source} - ${destination} Expressway`
+        });
       }
 
-      // Day 1 Wrap Up (Lodging or Return)
-      const needStayBool = (needStay === true || needStay === 'Yes');
-      if (durationDays > 1 || needStayBool) {
-        const hotel = destData.haltingPlaces?.[0]?.name || "Resort & Spa";
-        const hotelSpecs = getPlaceSpecs(hotel);
-        await travelToPlace(hotel, "Resort Check-in", "Unpack, refresh, and settle down at your overnight stay lodging.", 600, hotelSpecs);
-      } else {
-        if (tripMode === 'Round Trip') {
-          await travelToPlace(`Arrive at ${source}`, "Arrival", "Complete your road trip and safely arrive back home.", 0, {
-            lat: sourceCoords?.lat,
-            lng: sourceCoords?.lng,
-            placeId: sourcePlaceId,
-            address: sourceAddress || source
-          });
-        } else {
-          timeline.push({
-            day: 1,
-            time: minutesToTime(currentTime),
-            endTime: minutesToTime(currentTime),
-            place: `End of Day at ${destination}`,
-            purpose: "Arrival",
-            reason: "Arrive at destination city. Your one-way road trip is successfully completed.",
-            travelTimeFromPrevious: "0m",
-            isOpen: true,
-            warning: null,
-            lat: destinationCoords?.lat,
-            lng: destinationCoords?.lng,
-            placeId: destinationPlaceId,
-            address: destinationAddress || destination
-          });
-        }
-      }
-    } 
-    else {
-      // INTERMEDIATE & FINAL DAYS
+      // Final Return Arrival at Source on Day 2!
+      await travelToPlace(`Arrive at ${source}`, "Return Arrival", `Complete your 2-day road trip and safely arrive back at your original departure location (${source}).`, 0, {
+        lat: sourceCoords?.lat,
+        lng: sourceCoords?.lng,
+        placeId: sourcePlaceId,
+        address: sourceAddress || source
+      });
+    } else {
+      await travelToPlace(`End of Journey at ${resolvedOvernightHalt}`, "Stay & Rest", "Check into your destination lodging. Your one-way road trip is successfully completed.", 0, haltSpecs);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // MULTI-DAY (3+ DAYS) ITINERARY
+  // -------------------------------------------------------------
+  else {
+    for (let day = 1; day <= durationDays; day++) {
+      currentDay = day;
       const isFinalDay = (day === durationDays);
-      const hotel = destData.haltingPlaces?.[0]?.name || "Resort & Spa";
-      const hotelSpecs = getPlaceSpecs(hotel);
 
-      currentTime = timeToMinutes("09:00 AM");
-      currentLoc = hotel;
-      currentCoords = { lat: hotelSpecs.lat, lng: hotelSpecs.lng };
+      if (day === 1) {
+        currentTime = timeToMinutes(startTime);
 
-      if (isFinalDay) {
+        // Start from Source
         timeline.push({
-          day,
-          time: "09:00 AM",
-          endTime: "09:00 AM",
-          place: `Check out from ${hotel}`,
-          purpose: "Hotel Checkout",
-          reason: "Check out of lodging and prepare for the final sights and return journey.",
+          day: 1,
+          time: startTime,
+          endTime: startTime,
+          place: source.startsWith("Start from") ? source : `Start from ${source}`,
+          purpose: "Departure",
+          reason: "Begin your multi-day road trip journey.",
           travelTimeFromPrevious: "0m",
           isOpen: true,
           warning: null,
-          lat: hotelSpecs.lat,
-          lng: hotelSpecs.lng,
-          placeId: hotelSpecs.placeId || `mock_stay_${hotel.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: hotelSpecs.address || `${hotel}, ${destination}`
+          lat: sourceCoords?.lat,
+          lng: sourceCoords?.lng,
+          placeId: sourcePlaceId,
+          address: sourceAddress || source
         });
-      } else {
-        timeline.push({
-          day,
-          time: "09:00 AM",
-          endTime: "09:00 AM",
-          place: `Depart from ${hotel}`,
-          purpose: "Hotel Departure",
-          reason: "Begin your day's itinerary exploring local sights.",
-          travelTimeFromPrevious: "0m",
-          isOpen: true,
-          warning: null,
-          lat: hotelSpecs.lat,
-          lng: hotelSpecs.lng,
-          placeId: hotelSpecs.placeId || `mock_stay_${hotel.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-          address: hotelSpecs.address || `${hotel}, ${destination}`
-        });
-      }
 
-      // Schedule Attractions
-      let attractionsScheduled = 0;
-      for (let i = 0; i < attractionPool.length; i++) {
-        if (attractionsScheduled >= maxPerDay) break;
-
-        // Lunch break midpoint
-        if (attractionsScheduled === 1 && currentTime < timeToMinutes("02:30 PM")) {
-          const preferredRestaurant = destData.restaurants?.[day % destData.restaurants.length]?.name || destData.restaurants[0]?.name;
-          const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-          await travelToPlace(preferredRestaurant, "Lunch Break", "Lunch stop for regional delicacies.", restaurantSpecs.duration, restaurantSpecs);
+        if (oneWayTransitMins >= 90) {
+          const restStopName = destData.restStops?.[0]?.name || "Highway Nest Food Plaza";
+          await travelToPlace(restStopName, "Rest & Coffee", "Highway rest stop for amenities.", 30, getPlaceSpecs(restStopName));
         }
 
-        const att = attractionPool[i];
-        const specs = getPlaceSpecs(att.name);
-        const attCoords = { lat: specs.lat, lng: specs.lng };
-        const transit = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, attCoords);
-        const arrivalTime = currentTime + transit;
+        await travelToPlace(`Arrive at ${destination}`, "Arrival", `Arrive in ${destination}.`, 0, {
+          lat: destinationCoords?.lat,
+          lng: destinationCoords?.lng,
+          placeId: destinationPlaceId,
+          address: destinationAddress || destination
+        });
 
-        const status = getPlaceTimeStatus(att.name, minutesToTime(arrivalTime));
-        if (status === 'OPEN' || status === 'LIMITED') {
-          await travelToPlace(att.name, "Sightseeing", att.description || "Top rated local sight.", specs.duration, specs);
-          attractionsScheduled++;
-          attractionPool.splice(i, 1);
-          i--;
-        } else {
-          let reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}.`;
-          const openTime = specs.open || specs.openTime || "09:00 AM";
-          const closeTime = specs.close || specs.closeTime || "06:00 PM";
-          if (status === 'CLOSED') {
-            reasonMsg = `${att.name} is closed at ${minutesToTime(arrivalTime)}. Opening hours: ${openTime} - ${closeTime}.`;
-          } else if (status === 'NOT ENOUGH TIME') {
-            reasonMsg = `${att.name} has insufficient visit time at ${minutesToTime(arrivalTime)}. Minimum: ${specs.minDuration || 60}m. Closes at ${closeTime}.`;
+        if (currentTime < timeToMinutes("02:30 PM")) {
+          const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
+          await travelToPlace(preferredRestaurant, "Lunch Break", "Lunch break at a top spot.", 45, getPlaceSpecs(preferredRestaurant));
+        }
+
+        let scheduled = 0;
+        for (let i = 0; i < attractionPool.length; i++) {
+          if (scheduled >= maxPerDay) break;
+          const att = attractionPool[i];
+          const specs = getPlaceSpecs(att.name);
+          const transit = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, { lat: specs.lat, lng: specs.lng });
+          if (currentTime + transit + specs.duration > timeToMinutes("08:30 PM")) continue;
+          if (getPlaceTimeStatus(att.name, minutesToTime(currentTime + transit)) === 'OPEN') {
+            await travelToPlace(att.name, "Sightseeing", att.description || "Top sight.", specs.duration, specs);
+            scheduled++;
+            attractionPool.splice(i, 1);
+            i--;
           }
-          infeasible.push({
-            place: att.name,
-            reason: reasonMsg
-          });
         }
-      }
 
-      // Optional Dinner
-      if (currentTime < timeToMinutes("09:30 PM")) {
-        const preferredRestaurant = destData.restaurants?.[(day + 1) % destData.restaurants.length]?.name || destData.restaurants[0]?.name;
-        const restaurantSpecs = getPlaceSpecs(preferredRestaurant);
-        await travelToPlace(preferredRestaurant, "Dinner Break", "Relaxing dinner at a recommended local restaurant.", restaurantSpecs.duration, restaurantSpecs);
-      }
+        if (currentTime < timeToMinutes("09:30 PM")) {
+          const preferredRestaurant = destData.restaurants?.[1]?.name || destData.restaurants?.[0]?.name || "Local Dine";
+          await travelToPlace(preferredRestaurant, "Dinner Break", "Evening dinner.", 45, getPlaceSpecs(preferredRestaurant));
+        }
 
-      // End of day
-      if (!isFinalDay) {
-        await travelToPlace(hotel, "Return to Lodging", "Return to your hotel for overnight rest and recovery.", 600, hotelSpecs);
+        await travelToPlace(resolvedOvernightHalt, "Overnight Stay", `Check-in for overnight stay at ${resolvedOvernightHalt}.`, 600, haltSpecs);
       } else {
-        if (tripMode === 'Round Trip') {
-          await travelToPlace(`Arrive at ${source}`, "Arrival", "Complete your road trip and safely arrive back home.", 0, {
-            lat: sourceCoords?.lat,
-            lng: sourceCoords?.lng,
-            placeId: sourcePlaceId,
-            address: sourceAddress || source
-          });
+        currentTime = timeToMinutes("09:00 AM");
+        currentLoc = resolvedOvernightHalt;
+        currentCoords = haltCoords;
+
+        timeline.push({
+          day,
+          time: "09:00 AM",
+          endTime: "09:00 AM",
+          place: isFinalDay ? `Check out from ${resolvedOvernightHalt}` : `Depart from ${resolvedOvernightHalt}`,
+          purpose: isFinalDay ? "Hotel Checkout" : "Hotel Departure",
+          reason: isFinalDay ? `Check out of ${resolvedOvernightHalt} for return journey.` : `Depart from ${resolvedOvernightHalt} for Day ${day} exploration.`,
+          travelTimeFromPrevious: "0m",
+          isOpen: true,
+          warning: null,
+          lat: haltCoords.lat,
+          lng: haltCoords.lng,
+          placeId: haltSpecs.placeId || `halt_${resolvedOvernightHalt.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+          address: haltSpecs.address || `${resolvedOvernightHalt}, ${destination}`
+        });
+
+        let scheduled = 0;
+        for (let i = 0; i < attractionPool.length; i++) {
+          if (scheduled >= maxPerDay) break;
+          const att = attractionPool[i];
+          const specs = getPlaceSpecs(att.name);
+          const transit = getTravelTimeWithCoords(currentLoc, att.name, source, destination, currentCoords, { lat: specs.lat, lng: specs.lng });
+          if (currentTime + transit + specs.duration > timeToMinutes("07:30 PM")) continue;
+          if (getPlaceTimeStatus(att.name, minutesToTime(currentTime + transit)) === 'OPEN') {
+            await travelToPlace(att.name, "Sightseeing", att.description || "Top sight.", specs.duration, specs);
+            scheduled++;
+            attractionPool.splice(i, 1);
+            i--;
+          }
+        }
+
+        if (currentTime < timeToMinutes("02:30 PM")) {
+          const preferredRestaurant = destData.restaurants?.[0]?.name || "Local Dine";
+          await travelToPlace(preferredRestaurant, "Lunch Break", "Lunch break.", 45, getPlaceSpecs(preferredRestaurant));
+        }
+
+        if (isFinalDay) {
+          if (isRoundTrip) {
+            const returnTransitEst = getTravelTimeWithCoords(currentLoc, source, source, destination, currentCoords, sourceCoords);
+            if (returnTransitEst >= 90) {
+              await travelToPlace("Highway Express Rest Stop (Return)", "Rest & Coffee", "Rest stop on return journey.", 30, { lat: 12.5850, lng: 77.0410, address: "Highway" });
+            }
+            await travelToPlace(`Arrive at ${source}`, "Return Arrival", `Complete road trip and safely arrive back at ${source}.`, 0, {
+              lat: sourceCoords?.lat,
+              lng: sourceCoords?.lng,
+              placeId: sourcePlaceId,
+              address: sourceAddress || source
+            });
+          } else {
+            await travelToPlace(`End of Journey at ${resolvedOvernightHalt}`, "Stay & Rest", "Trip completed.", 0, haltSpecs);
+          }
         } else {
-          await travelToPlace(`End of Journey at ${hotel}`, "Stay & Rest", "Check into your destination lodging. Your one-way road trip is successfully completed.", 0, hotelSpecs);
+          await travelToPlace(resolvedOvernightHalt, "Overnight Stay", `Return to ${resolvedOvernightHalt} for overnight rest.`, 600, haltSpecs);
         }
       }
     }
@@ -1114,9 +1498,11 @@ export async function generateAccurateItinerary(input) {
     });
   }
 
-  // Attach the infeasible suggestions to the returned array object so it can be extracted
-  timeline.infeasible = infeasible;
-  return timeline;
+  // Run through recalculateSchedule to ensure 100% physically coherent timings and stable IDs
+  const scheduledTimeline = recalculateSchedule(timeline, input);
+  scheduledTimeline.isFeasible = true;
+  scheduledTimeline.infeasible = infeasible;
+  return scheduledTimeline;
 }
 
 // Auto-repair Timeline schedules
@@ -1323,184 +1709,705 @@ export function validateTimeline(timeline, tripDetails) {
     return { success: true, timeline: [], overallWarning: null };
   }
 
-  const validated = [];
-  let currentTime = timeToMinutes(startTime);
-  let previousPlace = source;
-  let totalDrivingTime = 0;
-  let timeSinceLastBreak = 0;
+  // Use the central scheduling engine to calculate physically accurate timeline
+  const scheduled = recalculateSchedule(timeline, tripDetails);
+
   let overallWarning = null;
+  const hardConflict = scheduled.find(v => v.warning?.includes("Hard constraint conflict"));
+  const fatigueWarning = scheduled.find(v => v.warning?.includes("Driver fatigue advisory"));
+  const closedWarning = scheduled.find(v => v.warning?.includes("closed"));
+  const durationWarning = scheduled.find(v => v.warning?.includes("exceeds"));
 
-  for (let i = 0; i < timeline.length; i++) {
-    const item = { ...timeline[i] };
-    const specs = getPlaceSpecs(item.place);
-    
-    // Check if day changed to reset scheduling start time
-    const day = item.day || 1;
-    const prevDay = i > 0 ? (timeline[i - 1].day || 1) : 1;
-    if (i > 0 && day !== prevDay) {
-      currentTime = timeToMinutes("09:00 AM");
-      timeSinceLastBreak = 0;
-    }
-
-    // Resolve coordinates for this item
-    if (i === 0) {
-      item.lat = sourceCoords?.lat || item.lat;
-      item.lng = sourceCoords?.lng || item.lng;
-      item.placeId = sourcePlaceId || item.placeId;
-      item.address = sourceAddress || item.address || source;
-    } else if (item.place.includes("Arrive in") || item.place.includes("Arrive at")) {
-      item.lat = destinationCoords?.lat || item.lat;
-      item.lng = destinationCoords?.lng || item.lng;
-      item.placeId = destinationPlaceId || item.placeId;
-      item.address = destinationAddress || item.address || destination;
-    } else {
-      const dbSpecs = getPlaceSpecs(item.place);
-      if (dbSpecs && dbSpecs.lat) {
-        item.lat = dbSpecs.lat;
-        item.lng = dbSpecs.lng;
-        item.placeId = dbSpecs.placeId || item.placeId || `mock_${item.place.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        item.address = dbSpecs.address || item.address || `${item.place}, ${destination}`;
-      } else {
-        item.lat = item.lat || destinationCoords?.lat;
-        item.lng = item.lng || destinationCoords?.lng;
-        item.placeId = item.placeId || `mock_${item.place.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        item.address = item.address || `${item.place}, ${destination}`;
-      }
-    }
-
-    let transit = 0;
-    if (i > 0) {
-      const prevItemCoords = validated[i - 1] ? { lat: validated[i - 1].lat, lng: validated[i - 1].lng } : null;
-      const currentItemCoords = { lat: item.lat, lng: item.lng };
-      transit = getTravelTimeWithCoords(previousPlace, item.place, source, destination, prevItemCoords, currentItemCoords);
-      currentTime += transit;
-      totalDrivingTime += transit;
-      timeSinceLastBreak += transit;
-    }
-
-    item.travelTimeFromPrevious = formatMinutes(transit);
-    const arrivalTimeStr = minutesToTime(currentTime);
-    
-    if (item.time) {
-      const userTime = timeToMinutes(item.time);
-      if (userTime < currentTime) {
-        item.warning = `Invalid timing: ${item.place} cannot be visited at ${item.time} because estimated arrival from ${previousPlace} is ${arrivalTimeStr} (including travel time).`;
-        currentTime = userTime; 
-      } else {
-        currentTime = userTime;
-        item.warning = null;
-      }
-    } else {
-      item.time = arrivalTimeStr;
-    }
-
-    const duration = i === 0 ? 0 : (specs.duration !== undefined ? specs.duration : 60);
-    const departureTime = currentTime + duration;
-    item.endTime = minutesToTime(departureTime);
-
-    const status = i === 0 ? "OPEN" : getPlaceTimeStatus(item.place, item.time);
-    item.isOpen = (status === "OPEN" || status === "LIMITED");
-
-    if (i > 0 && (status === "CLOSED" || status === "NOT ENOUGH TIME") && !item.warning) {
-      if (status === "CLOSED") {
-        const nextSlot = suggestNextAvailableSlot(item.place, currentTime);
-        item.warning = `${item.place} is closed at ${item.time}. Opening hours: ${specs.open || specs.openTime} - ${specs.close || specs.closeTime}. Suggested next open: ${nextSlot}.`;
-      } else {
-        const arrivalMins = currentTime;
-        const closeMins = timeToMinutes(specs.close || specs.closeTime);
-        const availableMins = closeMins - arrivalMins;
-        const minDur = specs.minDuration || specs.minimumVisitDuration || 60;
-        item.warning = `${item.place} does not have enough visit time at ${item.time}. Minimum required: ${minDur} mins, available: ${availableMins} mins.`;
-      }
-    }
-
-    if (item.purpose === "Rest & Coffee" || item.purpose === "Lunch Break") {
-      timeSinceLastBreak = 0;
-    }
-
-    if (timeSinceLastBreak > 180) {
-      item.warning = (item.warning ? item.warning + " " : "") + "Add rest break before continuing: driving time exceeds 3 hours without rest.";
-      overallWarning = "Driver fatigue warning detected. Please add a rest break.";
-    }
-
-    validated.push(item);
-    currentTime = departureTime;
-    previousPlace = item.place;
+  if (hardConflict) {
+    overallWarning = hardConflict.warning;
+  } else if (closedWarning) {
+    overallWarning = closedWarning.warning;
+  } else if (durationWarning) {
+    overallWarning = durationWarning.warning;
+  } else if (fatigueWarning) {
+    overallWarning = fatigueWarning.warning;
   }
 
-  const success = !validated.some(v => v.warning?.includes("Invalid timing") || v.warning?.includes("closed") || v.warning?.includes("enough visit time"));
+  const success = !hardConflict && !closedWarning;
   return {
     success,
-    timeline: validated,
+    timeline: scheduled,
     overallWarning
   };
 }
 
-// Chronologically reschedule timeline to resolve overlaps
-export function rescheduleTimeline(timeline, tripDetails) {
-  const { source, destination, startTime = "09:00 AM" } = tripDetails;
-  
+// Add calendar days to a YYYY-MM-DD date string
+export function addDaysToDate(dateStr, days) {
+  if (!dateStr || days === 0) return dateStr;
+  const d = parseLocalDate(dateStr);
+  d.setDate(d.getDate() + days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// -------------------------------------------------------------
+// CENTRAL ITINERARY SCHEDULING ENGINE
+// -------------------------------------------------------------
+export function recalculateSchedule(timeline, tripDetails = {}, options = {}) {
   if (!timeline || timeline.length === 0) {
     return [];
   }
-  
+
+  const safeTripDetails = (tripDetails && typeof tripDetails === 'object') ? tripDetails : {};
+  const {
+    source = "Bangalore",
+    destination = "Mysore",
+    startTime = "09:00 AM",
+    tripDate = new Date().toLocaleDateString('en-CA'),
+    durationDays = 1,
+    sourceCoords = null,
+    destinationCoords = null
+  } = safeTripDetails;
+
+  const safeSource = source || "Bangalore";
+  const safeDestination = destination || "Mysore";
+  const srcLower = safeSource.toLowerCase();
+  const dstLower = safeDestination.toLowerCase();
+
   const rescheduled = [];
-  let currentTime = timeToMinutes(startTime);
-  let previousPlace = source;
-  let prevCoords = tripDetails.sourceCoords;
-  
+  let currentDay = 1;
+  let currentMinutes = timeToMinutes(startTime);
+  let previousPlace = safeSource;
+  let prevCoords = sourceCoords || null;
+  let timeSinceLastBreak = 0;
+
   for (let i = 0; i < timeline.length; i++) {
-    const item = { ...timeline[i] };
-    const specs = getPlaceSpecs(item.place);
-    
-    const day = item.day || 1;
-    const prevDay = i > 0 ? (rescheduled[i - 1].day || 1) : 1;
-    if (i > 0 && day !== prevDay) {
-      currentTime = timeToMinutes("09:00 AM");
+    const rawItem = timeline[i];
+    const item = { ...rawItem };
+
+    // 1. Assign Stable ID
+    if (!item.id && !item._id) {
+      item.id = `stop_${item.day || currentDay}_${i}_${Math.random().toString(36).substr(2, 6)}`;
+    } else {
+      item.id = item.id || (item._id ? item._id.toString() : `stop_${i}`);
     }
-    
-    let itemCoords = { lat: item.lat || specs.lat, lng: item.lng || specs.lng };
-    if (!itemCoords.lat && item.place.includes(destination)) {
-      itemCoords = tripDetails.destinationCoords;
+
+    // 2. Identify Stop Types
+    const placeLower = (item.place || '').toLowerCase();
+    const isDeparture = i === 0 || item.purpose === 'Departure' || placeLower.includes(`start from ${srcLower}`) || placeLower.includes(`depart from ${srcLower}`);
+    const isReturn = item.purpose === 'Return Arrival' || item.isReturnArrival || placeLower.includes(`arrive at ${srcLower}`) || placeLower.includes(`return to ${srcLower}`);
+    const isOvernight = item.purpose === 'Overnight Stay' || item.purpose === 'Resort Check-in' || item.isOvernight || placeLower.includes('overnight');
+
+    // 3. Resolve Coordinates & Place Specs
+    const specs = getPlaceSpecs(item.place) || {};
+    let itemCoords = {
+      lat: item.lat || specs.lat,
+      lng: item.lng || specs.lng
+    };
+
+    if (isDeparture || isReturn) {
+      itemCoords = sourceCoords || itemCoords;
+    } else if (!itemCoords.lat && placeLower.includes(dstLower)) {
+      itemCoords = destinationCoords || itemCoords;
     }
-    if (!itemCoords.lat && item.place.includes(source)) {
-      itemCoords = tripDetails.sourceCoords;
+
+    item.lat = itemCoords.lat || item.lat;
+    item.lng = itemCoords.lng || item.lng;
+    item.placeId = item.placeId || specs.placeId || `mock_${(item.place || 'place').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+    item.address = item.address || specs.address || `${item.place}, ${safeDestination}`;
+
+    // 4. Multi-Day Rollover & Overnight Transitions
+    if (i > 0) {
+      const prevStop = rescheduled[i - 1];
+      const prevWasOvernight = prevStop.isOvernight || prevStop.purpose === 'Overnight Stay' || prevStop.purpose === 'Resort Check-in';
+      if (prevWasOvernight || (item.day && item.day > prevStop.day)) {
+        currentDay = (prevStop.day || 1) + 1;
+        // Day 2 (or next day) resumes at 08:30 AM from the overnight accommodation
+        currentMinutes = timeToMinutes("08:30 AM");
+        timeSinceLastBreak = 0;
+        previousPlace = prevStop.place;
+        prevCoords = { lat: prevStop.lat, lng: prevStop.lng };
+      }
     }
-    
+    item.day = currentDay;
+    item.date = addDaysToDate(tripDate, currentDay - 1);
+
+    // 5. Travel Transit Time & Distance from Preceding Stop
     let transit = 0;
+    let distanceKm = 0;
     if (i > 0) {
       transit = getTravelTimeWithCoords(previousPlace, item.place, source, destination, prevCoords, itemCoords);
-      currentTime += transit;
+      if (prevCoords && itemCoords && prevCoords.lat && itemCoords.lat) {
+        distanceKm = Math.round(getHaversineDistance(prevCoords.lat, prevCoords.lng, itemCoords.lat, itemCoords.lng) * 1.3);
+      } else {
+        distanceKm = Math.round((transit / 60) * 65);
+      }
+      currentMinutes += transit;
+      timeSinceLastBreak += transit;
     }
-    
-    item.time = minutesToTime(currentTime);
+
     item.travelTimeFromPrevious = formatMinutes(transit);
-    
+    item.distanceFromPrevious = distanceKm;
+    const rawArrivalMinutes = currentMinutes;
+    const arrivalTimeStr = minutesToTime(rawArrivalMinutes);
+
+    // 6. Planned Visit / Service Duration
     let duration = 60;
-    if (i === 0) {
+    if (isDeparture || isReturn) {
       duration = 0;
-    } else if (item.place.includes("Arrive at") || item.place.includes("Arrive in") || item.place.includes("Check out from") || item.place.includes("End of Journey") || item.place.includes("End of Day")) {
-      duration = 0;
-    } else if (specs && specs.duration !== undefined) {
+    } else if (isOvernight) {
+      duration = 600; // overnight rest interval
+    } else if (item.duration !== undefined && item.duration !== null && !isNaN(Number(item.duration))) {
+      duration = Number(item.duration);
+    } else if (item.purpose === 'EV Charging' || item.place.toLowerCase().includes('charger') || item.place.toLowerCase().includes('ev fast')) {
+      duration = 40; // EV fast charging service duration
+    } else if (item.purpose === 'Refueling' || item.place.toLowerCase().includes('petrol') || item.place.toLowerCase().includes('fuel station')) {
+      duration = 15; // Fuel service duration
+    } else if (item.purpose === 'Rest Stop' || item.purpose === 'Rest & Coffee') {
+      duration = 30;
+    } else if (item.purpose === 'Meal Break' || item.purpose === 'Lunch Break' || item.purpose === 'Dinner Break') {
+      duration = specs.duration || 60;
+    } else if (specs.duration !== undefined) {
       duration = specs.duration;
     }
-    
-    currentTime += duration;
-    item.endTime = minutesToTime(currentTime);
-    
-    const status = getPlaceTimeStatus(item.place, item.time);
-    item.isOpen = (status === "OPEN" || status === "LIMITED");
-    
-    if (status === "CLOSED" && !item.place.includes("End of Day") && !item.place.includes("Arrive at") && !item.place.includes("Start from")) {
-      item.warning = `${item.place} is closed at ${item.time}. Opening hours: ${specs.open || specs.openTime || "09:00 AM"} - ${specs.close || specs.closeTime || "06:00 PM"}.`;
+    item.duration = duration;
+
+    // 7. Intelligent Time Conflict Resolution & Constraint Application
+    let waitMinutes = 0;
+    let activityStartMinutes = rawArrivalMinutes;
+
+    if (item.isPinned && item.pinnedTime) {
+      // User explicitly pinned this hard appointment / reservation
+      item.time = item.pinnedTime;
+      const pinnedMinutes = timeToMinutes(item.pinnedTime);
+      if (rawArrivalMinutes > pinnedMinutes) {
+        // Hard constraint cannot be satisfied!
+        item.hasConflict = true;
+        item.isPinnedConflict = true;
+        item.estimatedArrival = arrivalTimeStr;
+        item.warning = `Pinned reservation conflict: Cannot reach pinned reservation at ${item.pinnedTime}. Estimated arrival from ${previousPlace} is ${arrivalTimeStr}.`;
+        activityStartMinutes = rawArrivalMinutes;
+      } else {
+        // Arrival is on or before pinned time: wait until pinned time
+        waitMinutes = pinnedMinutes - rawArrivalMinutes;
+        activityStartMinutes = pinnedMinutes;
+        item.hasConflict = false;
+        item.isPinnedConflict = false;
+        item.warning = null;
+      }
     } else {
+      // Flexible activity: adjust schedule to arrival time & check opening hours
+      item.time = arrivalTimeStr;
+      item.hasConflict = false;
+      item.isPinnedConflict = false;
       item.warning = null;
+      const openTime = specs.open || specs.openTime;
+      const closeTime = specs.close || specs.closeTime;
+
+      if (openTime && openTime !== "24 hours" && openTime !== "24 Hours" && closeTime) {
+        const openMins = timeToMinutes(openTime);
+        const closeMins = timeToMinutes(closeTime);
+
+        if (rawArrivalMinutes < openMins) {
+          // Arrives before opening: user waits until venue opens
+          waitMinutes = openMins - rawArrivalMinutes;
+          activityStartMinutes = openMins;
+          item.isOpen = true;
+          item.autoFixed = true;
+          item.autoFixMessage = `Adjusted: waiting ${waitMinutes}m for ${specs.open || openTime} opening`;
+        } else if (rawArrivalMinutes >= closeMins) {
+          // Arrives after venue is closed
+          item.isOpen = false;
+          item.warning = `${item.place} is closed at arrival time ${arrivalTimeStr}. (Operating hours: ${openTime} - ${closeTime}).`;
+        } else {
+          // Arrives during operating hours
+          item.isOpen = true;
+          if (rawArrivalMinutes + duration > closeMins) {
+            const availableMins = closeMins - rawArrivalMinutes;
+            item.warning = `${item.place} closes at ${closeTime}. Only ${availableMins} mins available (planned: ${duration} mins).`;
+          }
+        }
+      } else {
+        item.isOpen = true;
+      }
     }
-    
+
+    // Set timestamps
+    if (waitMinutes > 0) {
+      item.waitTime = `${waitMinutes}m`;
+      item.activityStartTime = minutesToTime(activityStartMinutes);
+    } else {
+      item.waitTime = null;
+      item.activityStartTime = item.time;
+    }
+
+    // Departure time from this stop
+    const departureMinutes = activityStartMinutes + duration;
+    item.endTime = minutesToTime(departureMinutes);
+    currentMinutes = departureMinutes;
+
+    // 8. Driver Fatigue Tracking
+    if (item.purpose === 'Rest Stop' || item.purpose === 'Rest & Coffee' || item.purpose === 'Lunch Break' || isOvernight) {
+      timeSinceLastBreak = 0;
+    }
+    if (timeSinceLastBreak > 180 && !isDeparture && !isReturn && !item.warning) {
+      item.warning = "Driver fatigue advisory: driving time exceeds 3 hours without rest. Consider adding a rest stop.";
+    }
+
+    item.isReturnArrival = isReturn;
+    item.isOvernight = isOvernight;
+
     rescheduled.push(item);
     previousPlace = item.place;
     prevCoords = itemCoords;
   }
-  
+
+  // 9. Round-Trip Feasibility & Safe Cutoff Verification
+  const lastStop = rescheduled[rescheduled.length - 1];
+  if (lastStop && lastStop.isReturnArrival) {
+    if (durationDays === 1 && lastStop.day > 1) {
+      lastStop.warning = `Trip exceeds 1-day limit (returns on Day ${lastStop.day}). Consider extending duration or removing stops.`;
+    } else if (durationDays === 1 && timeToMinutes(lastStop.time) > timeToMinutes("11:00 PM")) {
+      lastStop.warning = `Late return at ${lastStop.time} (exceeds safe 11:00 PM cutoff). Consider starting earlier or reducing stop durations.`;
+    } else if (durationDays === 2 && lastStop.day > 2) {
+      lastStop.warning = `Trip exceeds 2-day limit (returns on Day ${lastStop.day}).`;
+    } else if (durationDays === 2 && timeToMinutes(lastStop.time) > timeToMinutes("11:00 PM")) {
+      lastStop.warning = `Late Day 2 return at ${lastStop.time} (exceeds safe 11:00 PM cutoff).`;
+    }
+  }
+
   return rescheduled;
+}
+
+// Chronologically reschedule timeline (alias to central engine)
+export function rescheduleTimeline(timeline, tripDetails) {
+  return recalculateSchedule(timeline, tripDetails);
+}
+
+// Insert stop at ANY position in itinerary
+export function insertStopAtPosition(timeline, arg1, arg2, arg3) {
+  if (!timeline || timeline.length === 0) return [];
+  const list = [...timeline.map(item => ({ ...item }))];
+
+  let newStop, insertIndex, tripDetails;
+  if (typeof arg1 === 'number') {
+    insertIndex = arg1;
+    newStop = arg2 || {};
+    tripDetails = arg3;
+  } else {
+    newStop = arg1 || {};
+    insertIndex = arg2;
+    tripDetails = arg3;
+  }
+  
+  const specs = getPlaceSpecs(newStop.place) || {};
+  let defaultDuration = 60;
+  const purpose = newStop.purpose || (specs.type === 'restaurant' ? 'Meal Break' : (specs.type === 'restStop' ? 'Rest Stop' : (specs.type === 'lodging' ? 'Overnight Stay' : 'Sightseeing')));
+  
+  if (purpose === 'Meal Break' || purpose === 'Lunch Break' || purpose === 'Dinner Break') {
+    defaultDuration = specs.duration || 60;
+  } else if (purpose === 'Rest Stop' || purpose === 'Rest & Coffee') {
+    defaultDuration = 30;
+  } else if (purpose === 'EV Charging' || (newStop.place && newStop.place.toLowerCase().includes('charger'))) {
+    defaultDuration = 40;
+  } else if (purpose === 'Refueling' || (newStop.place && (newStop.place.toLowerCase().includes('petrol') || newStop.place.toLowerCase().includes('fuel')))) {
+    defaultDuration = 15;
+  } else if (purpose === 'Overnight Stay' || purpose === 'Resort Check-in') {
+    defaultDuration = 600;
+  } else if (specs.duration !== undefined) {
+    defaultDuration = specs.duration;
+  }
+
+  const stopToAdd = {
+    id: newStop.id || `stop_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    place: newStop.place,
+    purpose: purpose,
+    reason: newStop.reason || `Waypoint added by traveler.`,
+    duration: newStop.duration !== undefined ? Number(newStop.duration) : defaultDuration,
+    isPinned: Boolean(newStop.isPinned),
+    pinnedTime: newStop.pinnedTime || null,
+    isOvernight: purpose === 'Overnight Stay' || purpose === 'Resort Check-in',
+    isReturnArrival: false,
+    lat: newStop.lat || specs.lat,
+    lng: newStop.lng || specs.lng,
+    placeId: newStop.placeId || specs.placeId,
+    address: newStop.address || specs.address,
+    day: newStop.day || 1
+  };
+
+  // Determine index boundary
+  let targetIndex = insertIndex;
+  const returnIdx = list.findIndex(item => item.purpose === 'Return Arrival' || item.isReturnArrival);
+  
+  if (targetIndex === undefined || targetIndex === null || isNaN(targetIndex) || targetIndex <= 0) {
+    targetIndex = returnIdx > 0 ? returnIdx : list.length;
+  } else if (returnIdx !== -1 && targetIndex > returnIdx) {
+    targetIndex = returnIdx;
+  }
+
+  // Determine day context from predecessors
+  if (targetIndex > 0 && targetIndex < list.length) {
+    const prevItem = list[targetIndex - 1];
+    const prevIsOvernight = prevItem.isOvernight || prevItem.purpose === 'Overnight Stay' || prevItem.purpose === 'Resort Check-in';
+    if (prevIsOvernight) {
+      stopToAdd.day = (prevItem.day || 1) + 1;
+    } else {
+      stopToAdd.day = prevItem.day || 1;
+    }
+  }
+
+  list.splice(targetIndex, 0, stopToAdd);
+  const safeDetails = (tripDetails && typeof tripDetails === 'object') ? tripDetails : {};
+  if (!safeDetails.source && list[0]?.place) safeDetails.source = list[0].place;
+  return recalculateSchedule(list, safeDetails);
+}
+
+// Remove stop from itinerary
+export function removeStopAtPosition(timeline, arg1, arg2, arg3) {
+  if (!timeline || timeline.length === 0) return [];
+  const list = [...timeline.map(item => ({ ...item }))];
+
+  let stopIdOrIndex = arg1;
+  let tripDetails = arg2;
+  if (typeof arg2 === 'string' && typeof arg3 === 'object') {
+    tripDetails = arg3;
+  } else if (typeof arg2 === 'string') {
+    tripDetails = {};
+  }
+  tripDetails = (tripDetails && typeof tripDetails === 'object') ? tripDetails : {};
+  if (!tripDetails.source && list[0]?.place) tripDetails.source = list[0].place;
+
+  let targetIndex = -1;
+  if (typeof stopIdOrIndex === 'number') {
+    targetIndex = stopIdOrIndex;
+  } else {
+    targetIndex = list.findIndex(item => item.id === stopIdOrIndex || item._id?.toString() === stopIdOrIndex || (item.place || '').toLowerCase() === (stopIdOrIndex || '').toLowerCase());
+  }
+
+  // Prevent removing Departure (index 0) or Return Arrival (the last stop)
+  if (targetIndex <= 0 || targetIndex >= list.length - 1) {
+    return recalculateSchedule(list, tripDetails);
+  }
+
+  list.splice(targetIndex, 1);
+  return recalculateSchedule(list, tripDetails);
+}
+
+// Reorder stops in itinerary
+export function reorderStops(timeline, fromIndex, toIndex, tripDetails = {}) {
+  if (!timeline || timeline.length === 0) return [];
+  const list = [...timeline.map(item => ({ ...item }))];
+
+  tripDetails = (tripDetails && typeof tripDetails === 'object') ? tripDetails : {};
+  if (!tripDetails.source && list[0]?.place) tripDetails.source = list[0].place;
+
+  const maxIdx = list.length - 2;
+  const validFrom = Math.max(1, Math.min(fromIndex, maxIdx));
+  const validTo = Math.max(1, Math.min(toIndex, maxIdx));
+
+  if (validFrom === validTo) {
+    return recalculateSchedule(list, tripDetails);
+  }
+
+  const [movedItem] = list.splice(validFrom, 1);
+  list.splice(validTo, 0, movedItem);
+
+  return recalculateSchedule(list, tripDetails);
+}
+
+// Update stop duration in itinerary
+export function updateStopDuration(timeline, arg1, arg2, arg3, arg4) {
+  if (!timeline || timeline.length === 0) return [];
+  const list = [...timeline.map(item => ({ ...item }))];
+
+  let stopIdOrIndex, newDuration, tripDetails;
+  if (typeof arg3 === 'number') {
+    stopIdOrIndex = arg1 !== undefined ? arg1 : arg2;
+    newDuration = arg3;
+    tripDetails = arg4;
+  } else {
+    stopIdOrIndex = arg1;
+    newDuration = arg2;
+    tripDetails = arg3;
+  }
+
+  tripDetails = (tripDetails && typeof tripDetails === 'object') ? tripDetails : {};
+  if (!tripDetails.source && list[0]?.place) tripDetails.source = list[0].place;
+
+  let targetIndex = -1;
+  if (typeof stopIdOrIndex === 'number') {
+    targetIndex = stopIdOrIndex;
+  } else {
+    targetIndex = list.findIndex(item => item.id === stopIdOrIndex || item._id?.toString() === stopIdOrIndex || (item.place || '').toLowerCase() === (stopIdOrIndex || '').toLowerCase());
+  }
+
+  if (targetIndex >= 0 && targetIndex < list.length) {
+    list[targetIndex].duration = Math.max(0, Number(newDuration) || 0);
+  }
+
+  return recalculateSchedule(list, tripDetails);
+}
+
+// Update stop pinned reservation time
+export function updateStopPinnedTime(timeline, arg1, arg2, arg3, arg4, arg5) {
+  if (!timeline || timeline.length === 0) return [];
+  const list = [...timeline.map(item => ({ ...item }))];
+
+  let stopIdOrIndex, isPinned, pinnedTime, tripDetails;
+  if (typeof arg2 === 'string' && typeof arg3 === 'boolean') {
+    stopIdOrIndex = arg1 !== undefined ? arg1 : arg2;
+    isPinned = arg3;
+    pinnedTime = arg4;
+    tripDetails = arg5;
+  } else {
+    stopIdOrIndex = arg1;
+    isPinned = arg2;
+    pinnedTime = arg3;
+    tripDetails = arg4;
+  }
+
+  tripDetails = (tripDetails && typeof tripDetails === 'object') ? tripDetails : {};
+  if (!tripDetails.source && list[0]?.place) tripDetails.source = list[0].place;
+
+  let targetIndex = -1;
+  if (typeof stopIdOrIndex === 'number') {
+    targetIndex = stopIdOrIndex;
+  } else {
+    targetIndex = list.findIndex(item => item.id === stopIdOrIndex || item._id?.toString() === stopIdOrIndex || (item.place || '').toLowerCase() === (stopIdOrIndex || '').toLowerCase());
+  }
+
+  if (targetIndex >= 0 && targetIndex < list.length) {
+    list[targetIndex].isPinned = Boolean(isPinned);
+    if (isPinned && pinnedTime) {
+      list[targetIndex].pinnedTime = pinnedTime;
+    } else if (!isPinned) {
+      list[targetIndex].pinnedTime = null;
+    }
+  }
+
+  return recalculateSchedule(list, tripDetails);
+}
+
+// Calculate comprehensive round-trip metrics
+export function calculateRoundTripMetrics(timeline, source, destination, sourceCoords, destinationCoords) {
+  if (!timeline || timeline.length === 0) {
+    return {
+      totalDistanceKm: 0,
+      totalDrivingMins: 0,
+      totalDrivingTime: "0h 0m",
+      totalTripMins: 0,
+      totalTripTime: "0h",
+      expectedReturnTime: "N/A",
+      returnDay: 1,
+      overnightHalt: null,
+      outboundDrivingMins: 0,
+      returnDrivingMins: 0,
+      activityMins: 0,
+      restMins: 0
+    };
+  }
+
+  let totalDrivingMins = 0;
+  let outboundDrivingMins = 0;
+  let returnDrivingMins = 0;
+  let activityMins = 0;
+  let restMins = 0;
+  let overnightHalt = null;
+
+  let reachedDestination = false;
+  let startedReturn = false;
+
+  const dstLower = (destination || "").toLowerCase().trim();
+  const srcLower = (source || "").toLowerCase().trim();
+
+  let sumDistanceFromPrevious = 0;
+  let sumOutboundDist = 0;
+  let sumReturnDist = 0;
+
+  for (let i = 0; i < timeline.length; i++) {
+    const item = timeline[i];
+    const placeLower = (item.place || "").toLowerCase();
+
+    // Check if this item reached the destination area
+    if (i > 0 && !startedReturn && dstLower && (placeLower.includes(dstLower) || item.purpose === "Arrival" || placeLower.includes(`arrive at ${dstLower}`) || placeLower.includes(`arrive in ${dstLower}`))) {
+      reachedDestination = true;
+    }
+
+    if (item.place?.includes("Return") || item.purpose === "Return Arrival" || (reachedDestination && srcLower && placeLower.includes(srcLower))) {
+      startedReturn = true;
+    }
+    
+    if (item.travelTimeFromPrevious && item.travelTimeFromPrevious !== "0m") {
+      const matchH = item.travelTimeFromPrevious.match(/(\d+)h/);
+      const matchM = item.travelTimeFromPrevious.match(/(\d+)m/);
+      const h = matchH ? parseInt(matchH[1], 10) : 0;
+      const m = matchM ? parseInt(matchM[1], 10) : 0;
+      const mins = h * 60 + m;
+      totalDrivingMins += mins;
+
+      if (!reachedDestination) {
+        outboundDrivingMins += mins;
+      } else if (startedReturn || item.purpose === "Return Arrival" || (srcLower && placeLower.includes(srcLower))) {
+        returnDrivingMins += mins;
+      }
+    }
+
+    const dist = (typeof item.distanceFromPrevious === 'number' && item.distanceFromPrevious > 0) ? item.distanceFromPrevious : 0;
+    if (dist > 0) {
+      sumDistanceFromPrevious += dist;
+      if (!reachedDestination) {
+        sumOutboundDist += dist;
+      } else if (startedReturn || item.purpose === "Return Arrival" || (srcLower && placeLower.includes(srcLower))) {
+        sumReturnDist += dist;
+      }
+    }
+
+    if (item.purpose === "Overnight Stay" || item.purpose === "Resort Check-in") {
+      overnightHalt = item.place.replace("Overnight Stay at ", "").replace("Check-in at ", "");
+      restMins += 600;
+    } else if (item.purpose === "Sightseeing" || item.purpose === "Lunch Break" || item.purpose === "Dinner Break" || item.purpose === "Rest & Coffee") {
+      const specs = getPlaceSpecs(item.place);
+      activityMins += (specs.duration || 45);
+    }
+  }
+
+  const firstItem = timeline[0];
+  const lastItem = timeline[timeline.length - 1];
+  const returnDay = lastItem.day || 1;
+  const startMins = timeToMinutes(firstItem.time);
+  const endMins = timeToMinutes(lastItem.endTime || lastItem.time);
+  const totalTripMins = (returnDay - 1) * 1440 + (endMins - startMins);
+
+  const estOneWay = (source && destination) ? getRouteEstimatedDistanceKm(source, destination, sourceCoords, destinationCoords) : 140;
+  const speedBasedKm = Math.round((totalDrivingMins / 60) * 72.5);
+
+  let totalDistanceKm = sumDistanceFromPrevious > 0 ? sumDistanceFromPrevious : speedBasedKm;
+  if (reachedDestination && startedReturn && totalDistanceKm < estOneWay * 2) {
+    totalDistanceKm = Math.max(totalDistanceKm, estOneWay * 2);
+  }
+
+  let outwardDistanceKm = sumOutboundDist > 0 ? sumOutboundDist : Math.round((outboundDrivingMins / 60) * 72.5);
+  let returnDistanceKm = sumReturnDist > 0 ? sumReturnDist : Math.round((returnDrivingMins / 60) * 72.5);
+  if (reachedDestination && outwardDistanceKm < estOneWay) outwardDistanceKm = Math.max(outwardDistanceKm, estOneWay);
+  if (startedReturn && returnDistanceKm < estOneWay) returnDistanceKm = Math.max(returnDistanceKm, estOneWay);
+
+  return {
+    totalDistanceKm,
+    totalDrivingMins,
+    totalDrivingTime: formatMinutes(totalDrivingMins),
+    totalTripMins,
+    totalTripTime: formatMinutes(totalTripMins),
+    expectedReturnTime: lastItem.time,
+    finalReturnArrival: lastItem.time,
+    returnDay,
+    finalReturnDay: returnDay,
+    overnightHalt,
+    outboundDrivingMins,
+    returnDrivingMins,
+    outwardDistanceKm,
+    returnDistanceKm,
+    activityMins,
+    restMins,
+    isFeasible: totalDrivingMins <= (returnDay * 600)
+  };
+}
+
+// Validate complete round-trip itinerary against all core constraints
+export function validateRoundTripItinerary(timeline, tripDetails) {
+  const { source, destination, durationDays = 1 } = tripDetails;
+  const issues = [];
+
+  if (!timeline || timeline.length === 0) {
+    return { isValid: false, issues: ["Itinerary has no waypoints."] };
+  }
+
+  const first = timeline[0];
+  const last = timeline[timeline.length - 1];
+
+  // 1. Starts at departure location
+  const firstPlace = (first.place || "").toLowerCase();
+  const srcLower = (source || "").toLowerCase();
+  if (!firstPlace.includes(srcLower)) {
+    issues.push(`Itinerary does not start at the original departure location (${source}).`);
+  }
+
+  // 2. Returns to exact departure location
+  const lastPlace = (last.place || "").toLowerCase();
+  if (!lastPlace.includes(srcLower) && last.purpose !== "Return Arrival") {
+    issues.push(`Itinerary does not return to the original departure location (${source}). Final stop is ${last.place}.`);
+  }
+
+  // 3. Day 1 duration check
+  if (durationDays === 1) {
+    if (last.day && last.day > 1) {
+      issues.push(`1-Day trip exceeds Day 1 (returns on Day ${last.day}).`);
+    }
+    const returnMins = timeToMinutes(last.time);
+    if (returnMins > timeToMinutes("11:00 PM")) {
+      issues.push(`Return arrival time (${last.time}) exceeds safe Day 1 operating cutoff (11:00 PM).`);
+    }
+  }
+
+  // 4. Day 2 duration and overnight halt check
+  if (durationDays === 2) {
+    const hasOvernightHalt = timeline.some(t => 
+      t.day === 1 && (t.purpose === "Overnight Stay" || t.purpose === "Resort Check-in" || t.place.toLowerCase().includes("overnight") || t.place.toLowerCase().includes("hotel"))
+    );
+    if (!hasOvernightHalt) {
+      issues.push("2-Day trip does not include an explicit overnight halt on Day 1.");
+    }
+    if (last.day !== 2) {
+      issues.push(`2-Day trip must return on Day 2, but returns on Day ${last.day}.`);
+    }
+    const returnMins = timeToMinutes(last.time);
+    if (returnMins > timeToMinutes("11:00 PM")) {
+      issues.push(`Day 2 return arrival time (${last.time}) exceeds safe operating cutoff (11:00 PM).`);
+    }
+  }
+
+  // 5. Check consecutive driving intervals without break (fatigue)
+  let continuousDriving = 0;
+  for (let i = 1; i < timeline.length; i++) {
+    const item = timeline[i];
+    const prevItem = timeline[i - 1];
+
+    // Reset fatigue on day change (overnight rest)
+    if (item.day && prevItem && prevItem.day && item.day !== prevItem.day) {
+      continuousDriving = 0;
+    }
+
+    if (item.travelTimeFromPrevious) {
+      const matchH = item.travelTimeFromPrevious.match(/(\d+)h/);
+      const matchM = item.travelTimeFromPrevious.match(/(\d+)m/);
+      const transit = (matchH ? parseInt(matchH[1], 10) * 60 : 0) + (matchM ? parseInt(matchM[1], 10) : 0);
+      continuousDriving += transit;
+    }
+
+    const purposeLower = (item.purpose || "").toLowerCase();
+    const isBreak = 
+      purposeLower.includes("rest") || 
+      purposeLower.includes("break") || 
+      purposeLower.includes("lunch") || 
+      purposeLower.includes("dinner") || 
+      purposeLower.includes("meal") || 
+      purposeLower.includes("overnight") || 
+      purposeLower.includes("stay") || 
+      purposeLower.includes("charge") || 
+      purposeLower.includes("refuel") || 
+      purposeLower.includes("sightseeing") || 
+      (item.duration && item.duration >= 20);
+
+    if (isBreak) {
+      continuousDriving = 0;
+    }
+
+    if (continuousDriving > 240) {
+      issues.push(`Continuous driving time exceeds 4 hours without a rest break before ${item.place}.`);
+      break;
+    }
+  }
+
+  return {
+    isValid: issues.length === 0,
+    valid: issues.length === 0,
+    issues,
+    errors: issues
+  };
 }

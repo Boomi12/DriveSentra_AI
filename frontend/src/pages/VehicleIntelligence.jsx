@@ -376,7 +376,7 @@ const VehicleIntelligence = () => {
             <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
               {/* Trip ID Indicator */}
               {tripId && (
-                <div className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl flex items-center justify-between">
+                <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
                   <span className="text-[10px] text-slate-500 font-bold uppercase">Linked Telemetry ID</span>
                   <span className="text-[10px] text-purple-400 font-mono font-bold">{tripId}</span>
                 </div>

@@ -43,7 +43,7 @@ function generateReport() {
   // Latest arrival is restaurant closing time
   const latestArrivalStr = restaurantSpecs.close || '10:00 PM';
 
-  const report = `=== GUARDIANDRIVE AI ITINERARY SCHEDULING REPORT ===
+  const report = `=== DRIVESENTRA AI ITINERARY SCHEDULING REPORT ===
 Trip Route:         ${source} -> ${destination}
 Start Time:         ${startTime}
 Travel Duration:    ${totalDrivingStr} (${totalDrivingDuration} mins driving)

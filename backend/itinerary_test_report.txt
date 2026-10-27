@@ -1,4 +1,4 @@
-=== GUARDIANDRIVE AI ITINERARY SCHEDULING REPORT ===
+=== DRIVESENTRA AI ITINERARY SCHEDULING REPORT ===
 Trip Route:         Bangalore -> Mysore
 Start Time:         06:00 AM
 Travel Duration:    3h 15m (195 mins driving)

@@ -158,7 +158,7 @@ const StopSuggestions = ({ vehicleType, isTripPossible, estimatedRange, tripDist
                   }
                 </span>
 
-                <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h4 className="font-bold text-white text-xs tracking-wide">{stop.name}</h4>
                     <span className="inline-block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-1">{stop.type}</span>
@@ -183,7 +183,7 @@ const StopSuggestions = ({ vehicleType, isTripPossible, estimatedRange, tripDist
                       className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-md cursor-pointer active:scale-95 ${
                         bookings[stop.name]
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20'
-                          : 'bg-purple-650 hover:bg-purple-750 text-white'
+                          : 'bg-purple-600 hover:bg-purple-700 text-white'
                       }`}
                     >
                       {bookings[stop.name] ? 'Update Slot' : 'Book Slot'}
@@ -262,7 +262,7 @@ const StopSuggestions = ({ vehicleType, isTripPossible, estimatedRange, tripDist
                           className={`py-2 px-2 border rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-purple-500/10 text-purple-300 border-purple-500/40'
-                              : 'bg-slate-950 border-slate-850 text-slate-400 hover:text-white hover:border-slate-800'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-800'
                           }`}
                         >
                           {slot}

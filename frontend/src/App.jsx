@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Compass, Calendar, Activity, BrainCircuit, ShieldAlert, Shield, Menu, X, ArrowUpRight, LayoutDashboard, Sliders, LogOut, Gauge } from 'lucide-react';
 
@@ -25,17 +25,76 @@ const DashboardLayout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTripId, setActiveTripId] = useState(null);
   const [user, setUser] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const isEditingNameRef = useRef(isEditingName);
+  useEffect(() => {
+    isEditingNameRef.current = isEditingName;
+  }, [isEditingName]);
 
   // Poll localStorage occasionally to show active trip status and auth state in the navbar/sidebar
   const checkState = () => {
     const tripId = localStorage.getItem('gd_tripId');
     setActiveTripId(tripId);
 
-    const loggedUser = localStorage.getItem('gd_user');
-    if (loggedUser) {
-      setUser(JSON.parse(loggedUser));
-    } else {
-      setUser(null);
+    if (!isEditingNameRef.current) {
+      const loggedUser = localStorage.getItem('gd_user');
+      if (loggedUser) {
+        setUser(JSON.parse(loggedUser));
+      } else {
+        setUser(null);
+      }
+    }
+  };
+
+  const startEditing = () => {
+    if (user) {
+      setNewName(user.name);
+      setIsEditingName(true);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim() || newName.trim() === user.name) {
+      setIsEditingName(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('gd_token');
+      const response = await fetch('http://127.0.0.1:5000/api/auth/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: newName.trim() })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const updatedUser = { ...user, name: data.user.name };
+        localStorage.setItem('gd_user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        window.dispatchEvent(new Event('auth-change'));
+      } else {
+        console.error('Failed to update username:', data.error);
+        alert(data.error || 'Failed to update username');
+      }
+    } catch (error) {
+      console.error('Error updating username:', error);
+      alert('Error updating username. Please try again.');
+    } finally {
+      setIsEditingName(false);
+    }
+  };
+
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      setIsEditingName(false);
     }
   };
 
@@ -100,7 +159,7 @@ const DashboardLayout = ({ children }) => {
         <div className="flex items-center gap-2">
           <Shield className="h-6 w-6 text-purple-500 fill-purple-500/20" />
           <span className="font-extrabold text-white text-lg tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
-            GUARDIANDRIVE AI
+            DRIVESENTRA AI
           </span>
         </div>
         <button 
@@ -122,7 +181,7 @@ const DashboardLayout = ({ children }) => {
               </div>
               <div className="flex flex-col">
                 <span className="font-black text-white text-base tracking-widest leading-none">
-                  GUARDIANDRIVE
+                  DRIVESENTRA
                 </span>
                 <span className="text-[10px] text-purple-400 font-bold tracking-widest mt-0.5">
                   MOBILITY COMPANION
@@ -130,17 +189,7 @@ const DashboardLayout = ({ children }) => {
               </div>
             </div>
 
-            {user && (
-              <div className="px-3 py-2 bg-slate-950/40 border border-slate-850 rounded-xl flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-purple-650 flex items-center justify-center font-bold text-white text-xs">
-                  {user.name ? user.name[0].toUpperCase() : 'U'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-white truncate">{user.name}</h4>
-                  <p className="text-[9px] text-slate-500 truncate">{user.email}</p>
-                </div>
-              </div>
-            )}
+
 
             {/* Navigation links */}
             <nav className="space-y-1">
@@ -178,26 +227,39 @@ const DashboardLayout = ({ children }) => {
               Sign Out
             </button>
 
-            {activeTripId ? (
-              <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 h-1.5 w-1.5 bg-emerald-400 rounded-full animate-ping mt-3 mr-3"></div>
-                <div className="absolute top-0 right-0 h-1.5 w-1.5 bg-emerald-500 rounded-full mt-3 mr-3"></div>
-                <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">ACTIVE TRIP STATE</span>
-                <span className="block text-xs text-emerald-400 font-mono font-bold mt-1 tracking-wide">
-                  {activeTripId}
-                </span>
-              </div>
-            ) : (
-              <div className="p-4 bg-slate-950/20 border border-dashed border-slate-850 rounded-xl">
-                <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider">SYSTEM STATUS</span>
-                <span className="block text-xs text-slate-400 mt-1">
-                  Ready to initialize
-                </span>
+            {user && (
+              <div 
+                onClick={!isEditingName ? startEditing : undefined}
+                className={`px-3.5 py-2.5 bg-slate-950/40 border border-slate-800/80 rounded-xl flex items-center gap-3 ${!isEditingName ? 'cursor-pointer hover:bg-slate-900/30 hover:border-slate-700/60 transition-all' : ''}`}
+              >
+                <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-300 text-xs shrink-0 select-none">
+                  {user.name ? user.name[0].toUpperCase() : 'U'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  {isEditingName ? (
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={handleInputKeyDown}
+                      onBlur={handleSaveName}
+                      className="w-full bg-slate-900/80 border border-purple-500/30 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-purple-500 font-bold"
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-between group/name">
+                      <h4 className="text-xs font-bold text-slate-200 truncate">{user.name}</h4>
+                      <span className="text-[9px] text-slate-500 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1 select-none">Edit</span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-500 truncate mt-0.5 select-none">{user.email}</p>
+                </div>
               </div>
             )}
 
-            <div className="text-[10px] text-slate-650 text-center font-medium">
-              GuardianDrive AI © 2026. Hackathon Module.
+            <div className="text-[10px] text-slate-500 text-center font-medium">
+              DriveSentra AI © 2026
             </div>
           </div>
         </aside>
@@ -225,13 +287,32 @@ const DashboardLayout = ({ children }) => {
                 </div>
 
                 {user && (
-                  <div className="px-3 py-2 bg-slate-950 border border-slate-850 rounded-lg flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-purple-650 flex items-center justify-center font-bold text-white text-xs">
+                  <div 
+                    onClick={!isEditingName ? startEditing : undefined}
+                    className={`px-3.5 py-2.5 bg-slate-950/40 border border-slate-800/80 rounded-xl flex items-center gap-3 ${!isEditingName ? 'cursor-pointer hover:bg-slate-900/30 hover:border-slate-700/60 transition-all' : ''}`}
+                  >
+                    <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-300 text-xs shrink-0 select-none">
                       {user.name ? user.name[0].toUpperCase() : 'U'}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-white truncate">{user.name}</h4>
-                      <p className="text-[9px] text-slate-500 truncate">{user.email}</p>
+                      {isEditingName ? (
+                        <input
+                          type="text"
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                          onKeyDown={handleInputKeyDown}
+                          onBlur={handleSaveName}
+                          className="w-full bg-slate-900/80 border border-purple-500/30 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-purple-500 font-bold"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-between group/name">
+                          <h4 className="text-xs font-bold text-slate-200 truncate">{user.name}</h4>
+                          <span className="text-[9px] text-slate-500 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1 select-none">Edit</span>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-500 truncate mt-0.5 select-none">{user.email}</p>
                     </div>
                   </div>
                 )}

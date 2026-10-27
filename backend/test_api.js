@@ -3,7 +3,7 @@ const tripId = 'TEST_TRIP_' + Math.random().toString(36).substring(2, 7).toUpper
 const futureDate = new Date(Date.now() + 7 * 24 * 3600 * 1000).toLocaleDateString('en-CA');
 
 async function runTests() {
-  console.log('=== GuardianDrive AI API Integration Test ===');
+  console.log('=== DriveSentra AI API Integration Test ===');
   console.log('Testing with tripId:', tripId);
 
   try {

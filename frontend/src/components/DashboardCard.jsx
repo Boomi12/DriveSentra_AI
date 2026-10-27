@@ -16,7 +16,7 @@ const DashboardCard = ({
     >
       <div>
         {(title || IconComponent || headerAction) && (
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-850">
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
             <h3 className="font-bold text-white text-sm flex items-center gap-2">
               {IconComponent && <IconComponent className={`h-4.5 w-4.5 ${iconColorClass}`} />}
               {title}

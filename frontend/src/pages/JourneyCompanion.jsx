@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Compass, ArrowRight, Loader2, UtensilsCrossed, CalendarRange, Car, DollarSign, Plus, Trash2, Check, Search, PlusCircle, Sparkles, ShieldAlert, Info } from 'lucide-react';
+import { MapPin, Compass, ArrowRight, Loader2, UtensilsCrossed, CalendarRange, Car, DollarSign, Plus, Trash2, Check, Search, PlusCircle, Sparkles, ShieldAlert, Info, RotateCcw, CheckCircle2, Hotel, Home, ChevronUp, ChevronDown, Pin, Clock, Minus, X, Lock } from 'lucide-react';
 import { 
   generateItinerary, 
   recommendPlaces, 
@@ -12,7 +12,12 @@ import {
   getAutocompletePredictions,
   getPlaceDetails,
   getCurrentWeather,
-  validateItinerary
+  validateItinerary,
+  insertItineraryStop,
+  removeItineraryStop,
+  reorderItineraryStops,
+  updateStopDurationApi,
+  toggleStopPinApi
 } from '../services/api';
 import { 
   getCurrentDate, 
@@ -25,7 +30,9 @@ import {
   getLocalTravelOffset, 
   getEarliestArrival,
   isPastTimeToday,
-  getLocalPlaceTimeStatus
+  getLocalPlaceTimeStatus,
+  calculateClientRoundTripMetrics,
+  recalculateScheduleClient
 } from '../utils/timeValidation';
 
 const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
@@ -61,7 +68,7 @@ const JourneyCompanion = () => {
     interests: [],
     sourcePlaceId: '',
     destinationPlaceId: '',
-    tripMode: 'One Way'
+    tripMode: 'Round Trip'
   });
 
   const [vehicle, setVehicle] = useState(null);
@@ -90,6 +97,8 @@ const JourneyCompanion = () => {
   const [customDays, setCustomDays] = useState(1);
   const [weather, setWeather] = useState(null);
   const [infeasible, setInfeasible] = useState([]);
+  const [roundTripMetrics, setRoundTripMetrics] = useState(null);
+  const [infeasibilityDetails, setInfeasibilityDetails] = useState(null);
 
   const fetchedUserIdRef = React.useRef(null);
 
@@ -187,13 +196,26 @@ const JourneyCompanion = () => {
   const [tripId, setTripId] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const requestIdRef = React.useRef(0);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const [insertModalState, setInsertModalState] = useState({ isOpen: false, index: 1 });
+  const [newModalStop, setNewModalStop] = useState({
+    name: '',
+    purpose: 'Sightseeing',
+    duration: 60,
+    isPinned: false,
+    pinnedTime: ''
+  });
   
   // Custom place inputs
   const [customPlace, setCustomPlace] = useState({
     name: '',
     time: '04:00 PM',
     purpose: 'Sightseeing',
-    reason: 'Custom preferred attraction added by traveler.'
+    reason: 'Custom preferred attraction added by traveler.',
+    duration: 60,
+    insertPosition: 'auto',
+    isPinned: false
   });
 
   // Selected time for each recommended card
@@ -303,6 +325,13 @@ const JourneyCompanion = () => {
     if (trip.weatherData) {
       setWeather(trip.weatherData);
     }
+    if (trip.roundTripMetrics) {
+      setRoundTripMetrics(trip.roundTripMetrics);
+      localStorage.setItem('gd_roundTripMetrics', JSON.stringify(trip.roundTripMetrics));
+    }
+    if (trip.isFeasible === false && trip.infeasibilityDetails) {
+      setInfeasibilityDetails(trip.infeasibilityDetails);
+    }
 
     localStorage.setItem('gd_tripId', trip.tripId);
     localStorage.setItem('gd_timeline', JSON.stringify(trip.timeline || []));
@@ -350,24 +379,43 @@ const JourneyCompanion = () => {
     return rawMins;
   };
 
-  // Sort timeline chronologically
+  // Reschedule and sort timeline sequentially
   const sortTimeline = (list) => {
-    return [...list].sort((a, b) => {
-      if (a.day !== b.day) return (a.day || 1) - (b.day || 1);
-      return parseTime(a.time, a.day) - parseTime(b.time, b.day);
+    if (!list || list.length === 0) return [];
+    return recalculateScheduleClient(list, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
     });
   };
 
   // Sync timeline with backend and local storage
   const syncTimeline = async (newTimeline) => {
-    const sorted = sortTimeline(newTimeline);
-    setTimeline(sorted);
-    localStorage.setItem('gd_timeline', JSON.stringify(sorted));
+    const currentReqId = ++requestIdRef.current;
+    setIsRecalculating(true);
+
+    const scheduled = recalculateScheduleClient(newTimeline, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
+    });
+
+    setTimeline(scheduled);
+    localStorage.setItem('gd_timeline', JSON.stringify(scheduled));
+    const metrics = calculateClientRoundTripMetrics(scheduled, formData.source, formData.destination);
+    setRoundTripMetrics(metrics);
+    localStorage.setItem('gd_roundTripMetrics', JSON.stringify(metrics));
+
+    window.dispatchEvent(new CustomEvent('tripTwinUpdated', { 
+      detail: { timeline: scheduled, tripId } 
+    }));
 
     if (tripId) {
       setSyncing(true);
       try {
-        const valRes = await validateItinerary(sorted, {
+        const valRes = await validateItinerary(scheduled, {
           source: formData.source,
           destination: formData.destination,
           startTime: formData.startTime,
@@ -381,18 +429,35 @@ const JourneyCompanion = () => {
           durationDays: formData.durationDays
         });
 
-        if (valRes.suggestions && valRes.suggestions.length > 0) {
-          setSuggestedFixes(valRes.suggestions);
-        } else {
-          setSuggestedFixes([]);
+        if (currentReqId === requestIdRef.current) {
+          if (valRes && valRes.suggestions && valRes.suggestions.length > 0) {
+            setSuggestedFixes(valRes.suggestions);
+          } else {
+            setSuggestedFixes([]);
+          }
         }
 
-        await updateItineraryTimeline(tripId, sorted);
+        const updateRes = await updateItineraryTimeline(tripId, scheduled);
+        if (currentReqId === requestIdRef.current && updateRes && updateRes.success && updateRes.data) {
+          if (updateRes.data.timeline) {
+            setTimeline(updateRes.data.timeline);
+            localStorage.setItem('gd_timeline', JSON.stringify(updateRes.data.timeline));
+          }
+          if (updateRes.data.roundTripMetrics) {
+            setRoundTripMetrics(updateRes.data.roundTripMetrics);
+            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(updateRes.data.roundTripMetrics));
+          }
+        }
       } catch (err) {
         console.error('Failed to sync timeline with server, using local fallback:', err);
       } finally {
-        setSyncing(false);
+        if (currentReqId === requestIdRef.current) {
+          setSyncing(false);
+          setIsRecalculating(false);
+        }
       }
+    } else {
+      setIsRecalculating(false);
     }
   };
 
@@ -403,10 +468,14 @@ const JourneyCompanion = () => {
     const savedTripId = localStorage.getItem('gd_tripId');
     const savedTimeline = localStorage.getItem('gd_timeline');
     const savedInfeasible = localStorage.getItem('gd_infeasible');
+    const savedRoundTripMetrics = localStorage.getItem('gd_roundTripMetrics');
+    const savedInfeasibilityDetails = localStorage.getItem('gd_infeasibilityDetails');
 
     if (savedTripId) setTripId(savedTripId);
     if (savedRecs) setRecommendations(JSON.parse(savedRecs));
     if (savedInfeasible) setInfeasible(JSON.parse(savedInfeasible));
+    if (savedRoundTripMetrics) setRoundTripMetrics(JSON.parse(savedRoundTripMetrics));
+    if (savedInfeasibilityDetails) setInfeasibilityDetails(JSON.parse(savedInfeasibilityDetails));
     if (savedForm) {
       const parsedForm = JSON.parse(savedForm);
       setFormData(parsedForm);
@@ -426,6 +495,13 @@ const JourneyCompanion = () => {
             if (res.data.infeasible) {
               setInfeasible(res.data.infeasible);
               localStorage.setItem('gd_infeasible', JSON.stringify(res.data.infeasible));
+            }
+            if (res.data.roundTripMetrics) {
+              setRoundTripMetrics(res.data.roundTripMetrics);
+              localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+            }
+            if (res.data.isFeasible === false && res.data.infeasibilityDetails) {
+              setInfeasibilityDetails(res.data.infeasibilityDetails);
             }
             if (res.data.weatherData) {
               setWeather(res.data.weatherData);
@@ -458,8 +534,23 @@ const JourneyCompanion = () => {
     }));
   };
 
+  const handleApplyInfeasibleAlternative = (altText) => {
+    const lower = (altText || '').toLowerCase();
+    if (lower.includes('2 day') || lower.includes('extend duration')) {
+      setFormData(prev => ({ ...prev, durationDays: 2 }));
+      setInfeasibilityDetails(null);
+    } else if (lower.includes('earlier') || lower.includes('06:00 am')) {
+      setFormData(prev => ({ ...prev, startTime: '06:00 AM' }));
+      setInfeasibilityDetails(null);
+    } else if (lower.includes('closer') || lower.includes('mysore')) {
+      setFormData(prev => ({ ...prev, destination: 'Mysore' }));
+      setDestInput('Mysore');
+      setInfeasibilityDetails(null);
+    }
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setLoading(true);
     setError(null);
     setTimeline([]);
@@ -467,10 +558,14 @@ const JourneyCompanion = () => {
     setRecommendations(null);
     setWeather(null);
     setInfeasible([]);
+    setInfeasibilityDetails(null);
+    setRoundTripMetrics(null);
     localStorage.removeItem('gd_timeline');
     localStorage.removeItem('gd_recommendations');
     localStorage.removeItem('gd_tripId');
     localStorage.removeItem('gd_infeasible');
+    localStorage.removeItem('gd_roundTripMetrics');
+    localStorage.removeItem('gd_infeasibilityDetails');
 
     const generatedTripId = 'trip_' + Math.random().toString(36).substring(2, 9).toUpperCase();
     setTripId(generatedTripId);
@@ -483,8 +578,32 @@ const JourneyCompanion = () => {
         userId: user.id
       });
 
-      if (itinRes.success && itinRes.data.weatherData) {
-        setWeather(itinRes.data.weatherData);
+      if (itinRes.success && itinRes.data) {
+        if (itinRes.data.isFeasible === false) {
+          const infeasibleInfo = itinRes.data.infeasibilityDetails || {
+            reason: itinRes.message || 'Trip duration is insufficient for a safe complete round trip.',
+            alternatives: [
+              'Extend duration to 2 Days for an overnight stay',
+              'Start trip earlier (e.g. 06:00 AM) to fit safe driving hours',
+              'Choose a closer destination (e.g., Mysore, Nandi Hills, Shivanasamudra)'
+            ]
+          };
+          setInfeasibilityDetails(infeasibleInfo);
+          localStorage.setItem('gd_infeasibilityDetails', JSON.stringify(infeasibleInfo));
+          setTimeline([]);
+          setRoundTripMetrics(null);
+          setLoading(false);
+          return;
+        }
+
+        if (itinRes.data.roundTripMetrics) {
+          setRoundTripMetrics(itinRes.data.roundTripMetrics);
+          localStorage.setItem('gd_roundTripMetrics', JSON.stringify(itinRes.data.roundTripMetrics));
+        }
+
+        if (itinRes.data.weatherData) {
+          setWeather(itinRes.data.weatherData);
+        }
       }
 
       // 2. Fetch Place Recommendations
@@ -520,45 +639,336 @@ const JourneyCompanion = () => {
     }
   };
 
-  // ADD Recommended Place to Itinerary
-  const handleAddRecommendation = (item, type) => {
-    const defaultTimes = {
-      restaurant: '01:30 PM',
-      restStop: '11:30 AM',
-      lodging: '09:00 PM',
-      attraction: '04:00 PM'
+  // 1. Contextual Insert Stop
+  const handleInsertStop = async (insertIndex, newStop) => {
+    const currentReqId = ++requestIdRef.current;
+    setIsRecalculating(true);
+    const currentTimeline = [...timeline];
+
+    const stopToInsert = {
+      id: newStop.id || `stop-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      day: newStop.day || selectedTimelineDay || 1,
+      place: newStop.place || newStop.name,
+      purpose: newStop.purpose || 'Sightseeing',
+      reason: newStop.reason || 'Added by traveler.',
+      duration: Number(newStop.duration || 60),
+      isPinned: Boolean(newStop.isPinned),
+      pinnedTime: newStop.pinnedTime || null
     };
-    const eventTime = selectedTimes[item.name] || defaultTimes[type] || '04:00 PM';
+
+    const safeIndex = Math.max(1, Math.min(insertIndex, currentTimeline.length));
+    currentTimeline.splice(safeIndex, 0, stopToInsert);
+
+    const scheduledOptimistic = recalculateScheduleClient(currentTimeline, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
+    });
+
+    setTimeline(scheduledOptimistic);
+    localStorage.setItem('gd_timeline', JSON.stringify(scheduledOptimistic));
+    const metrics = calculateClientRoundTripMetrics(scheduledOptimistic, formData.source, formData.destination);
+    setRoundTripMetrics(metrics);
+    localStorage.setItem('gd_roundTripMetrics', JSON.stringify(metrics));
+
+    window.dispatchEvent(new CustomEvent('tripTwinUpdated', { 
+      detail: { timeline: scheduledOptimistic, tripId } 
+    }));
+
+    if (tripId) {
+      try {
+        const res = await insertItineraryStop(tripId, safeIndex, stopToInsert, {
+          source: formData.source,
+          destination: formData.destination,
+          startTime: formData.startTime,
+          tripDate: formData.tripDate,
+          durationDays: formData.durationDays,
+          vehicleType: formData.vehicleType
+        });
+        if (currentReqId === requestIdRef.current && res && res.success && res.data) {
+          setTimeline(res.data.timeline);
+          localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
+          if (res.data.roundTripMetrics) {
+            setRoundTripMetrics(res.data.roundTripMetrics);
+            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend insert sync failed, maintained optimistic schedule:', err);
+      } finally {
+        if (currentReqId === requestIdRef.current) {
+          setIsRecalculating(false);
+        }
+      }
+    } else {
+      setIsRecalculating(false);
+    }
+  };
+
+  // 2. Remove Stop
+  const handleRemoveStop = async (index, stopId) => {
+    if (index <= 0 || index >= timeline.length - 1) return;
+    const currentReqId = ++requestIdRef.current;
+    setIsRecalculating(true);
+
+    const optimisticTimeline = timeline.filter((_, idx) => idx !== index);
+    const scheduledOptimistic = recalculateScheduleClient(optimisticTimeline, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
+    });
+
+    setTimeline(scheduledOptimistic);
+    localStorage.setItem('gd_timeline', JSON.stringify(scheduledOptimistic));
+    const metrics = calculateClientRoundTripMetrics(scheduledOptimistic, formData.source, formData.destination);
+    setRoundTripMetrics(metrics);
+    localStorage.setItem('gd_roundTripMetrics', JSON.stringify(metrics));
+
+    window.dispatchEvent(new CustomEvent('tripTwinUpdated', { 
+      detail: { timeline: scheduledOptimistic, tripId } 
+    }));
+
+    if (tripId) {
+      try {
+        const res = await removeItineraryStop(tripId, index, stopId, {
+          source: formData.source,
+          destination: formData.destination,
+          startTime: formData.startTime,
+          tripDate: formData.tripDate,
+          durationDays: formData.durationDays,
+          vehicleType: formData.vehicleType
+        });
+        if (currentReqId === requestIdRef.current && res && res.success && res.data) {
+          setTimeline(res.data.timeline);
+          localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
+          if (res.data.roundTripMetrics) {
+            setRoundTripMetrics(res.data.roundTripMetrics);
+            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend remove sync failed, maintained optimistic schedule:', err);
+      } finally {
+        if (currentReqId === requestIdRef.current) {
+          setIsRecalculating(false);
+        }
+      }
+    } else {
+      setIsRecalculating(false);
+    }
+  };
+
+  // Remove by place name
+  const handleRemovePlace = async (placeName) => {
+    const idx = timeline.findIndex(event => (event.place || '').toLowerCase() === (placeName || '').toLowerCase());
+    if (idx !== -1) {
+      await handleRemoveStop(idx, timeline[idx]?.id);
+    }
+  };
+
+  // 3. Move Stop (Reorder)
+  const handleMoveStop = async (fromIndex, toIndex) => {
+    if (fromIndex <= 0 || toIndex <= 0 || fromIndex >= timeline.length - 1 || toIndex >= timeline.length - 1) return;
+    const currentReqId = ++requestIdRef.current;
+    setIsRecalculating(true);
+
+    const optimisticTimeline = [...timeline];
+    const [moved] = optimisticTimeline.splice(fromIndex, 1);
+    optimisticTimeline.splice(toIndex, 0, moved);
+
+    const scheduledOptimistic = recalculateScheduleClient(optimisticTimeline, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
+    });
+
+    setTimeline(scheduledOptimistic);
+    localStorage.setItem('gd_timeline', JSON.stringify(scheduledOptimistic));
+    const metrics = calculateClientRoundTripMetrics(scheduledOptimistic, formData.source, formData.destination);
+    setRoundTripMetrics(metrics);
+    localStorage.setItem('gd_roundTripMetrics', JSON.stringify(metrics));
+
+    window.dispatchEvent(new CustomEvent('tripTwinUpdated', { 
+      detail: { timeline: scheduledOptimistic, tripId } 
+    }));
+
+    if (tripId) {
+      try {
+        const res = await reorderItineraryStops(tripId, fromIndex, toIndex, {
+          source: formData.source,
+          destination: formData.destination,
+          startTime: formData.startTime,
+          tripDate: formData.tripDate,
+          durationDays: formData.durationDays,
+          vehicleType: formData.vehicleType
+        });
+        if (currentReqId === requestIdRef.current && res && res.success && res.data) {
+          setTimeline(res.data.timeline);
+          localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
+          if (res.data.roundTripMetrics) {
+            setRoundTripMetrics(res.data.roundTripMetrics);
+            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend reorder sync failed, maintained optimistic schedule:', err);
+      } finally {
+        if (currentReqId === requestIdRef.current) {
+          setIsRecalculating(false);
+        }
+      }
+    } else {
+      setIsRecalculating(false);
+    }
+  };
+
+  // 4. Update Stop Duration
+  const handleUpdateDuration = async (index, stopId, newDuration) => {
+    if (index <= 0 || index >= timeline.length - 1) return;
+    const clampedDuration = Math.max(15, Math.min(300, Number(newDuration)));
+    const currentReqId = ++requestIdRef.current;
+    setIsRecalculating(true);
+
+    const optimisticTimeline = [...timeline];
+    optimisticTimeline[index] = { ...optimisticTimeline[index], duration: clampedDuration };
+
+    const scheduledOptimistic = recalculateScheduleClient(optimisticTimeline, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
+    });
+
+    setTimeline(scheduledOptimistic);
+    localStorage.setItem('gd_timeline', JSON.stringify(scheduledOptimistic));
+    const metrics = calculateClientRoundTripMetrics(scheduledOptimistic, formData.source, formData.destination);
+    setRoundTripMetrics(metrics);
+    localStorage.setItem('gd_roundTripMetrics', JSON.stringify(metrics));
+
+    window.dispatchEvent(new CustomEvent('tripTwinUpdated', { 
+      detail: { timeline: scheduledOptimistic, tripId } 
+    }));
+
+    if (tripId) {
+      try {
+        const res = await updateStopDurationApi(tripId, index, stopId, clampedDuration, {
+          source: formData.source,
+          destination: formData.destination,
+          startTime: formData.startTime,
+          tripDate: formData.tripDate,
+          durationDays: formData.durationDays,
+          vehicleType: formData.vehicleType
+        });
+        if (currentReqId === requestIdRef.current && res && res.success && res.data) {
+          setTimeline(res.data.timeline);
+          localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
+          if (res.data.roundTripMetrics) {
+            setRoundTripMetrics(res.data.roundTripMetrics);
+            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend duration sync failed, maintained optimistic schedule:', err);
+      } finally {
+        if (currentReqId === requestIdRef.current) {
+          setIsRecalculating(false);
+        }
+      }
+    } else {
+      setIsRecalculating(false);
+    }
+  };
+
+  // 5. Toggle Pinned Reservation Time
+  const handleTogglePin = async (index, stopId, currentIsPinned, currentTime) => {
+    if (index <= 0 || index >= timeline.length - 1) return;
+    const currentReqId = ++requestIdRef.current;
+    const newIsPinned = !currentIsPinned;
+
+    const optimisticTimeline = [...timeline];
+    optimisticTimeline[index] = {
+      ...optimisticTimeline[index],
+      isPinned: newIsPinned,
+      pinnedTime: newIsPinned ? currentTime : null
+    };
+
+    const scheduledOptimistic = recalculateScheduleClient(optimisticTimeline, {
+      source: formData.source,
+      destination: formData.destination,
+      startTime: formData.startTime,
+      durationDays: formData.durationDays
+    });
+
+    setTimeline(scheduledOptimistic);
+    localStorage.setItem('gd_timeline', JSON.stringify(scheduledOptimistic));
+
+    if (tripId) {
+      try {
+        const res = await toggleStopPinApi(tripId, index, stopId, newIsPinned, newIsPinned ? currentTime : null, {
+          source: formData.source,
+          destination: formData.destination,
+          startTime: formData.startTime,
+          tripDate: formData.tripDate,
+          durationDays: formData.durationDays,
+          vehicleType: formData.vehicleType
+        });
+        if (currentReqId === requestIdRef.current && res && res.success && res.data) {
+          setTimeline(res.data.timeline);
+          localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
+          if (res.data.roundTripMetrics) {
+            setRoundTripMetrics(res.data.roundTripMetrics);
+            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend pin toggle failed:', err);
+      }
+    }
+  };
+
+  // ADD Recommended Place to Itinerary
+  const handleAddRecommendation = (item, type, targetIndex = null) => {
+    if (timeline.some(e => (e.place || '').toLowerCase() === (item.name || '').toLowerCase())) {
+      alert('This place is already in your itinerary.');
+      return;
+    }
 
     const purposeMap = {
       restaurant: 'Meal Break',
       restStop: 'Rest Stop',
       lodging: 'Overnight Stay',
-      attraction: 'Sightseeing'
+      attraction: 'Sightseeing',
+      refuel: formData.vehicleType === 'EV' ? 'EV Charging' : 'Fuel Station'
     };
 
-    const reasonMap = {
-      restaurant: `Dine at highly-rated local restaurant serving ${item.cuisine || 'local'} cuisine.`,
-      restStop: `Rest stop with facilities: ${item.facilities?.join(', ') || 'basic amenities'}.`,
-      lodging: `Stay at ${item.type || 'lodging'} — ${item.name}. Price: ${item.pricePerNight || 'N/A'}.`,
-      attraction: `Visit recommended tourist attraction: ${item.description?.substring(0, 50) || 'Scenic view'}...`
-    };
+    const specs = getLocalSpecs(item.name);
+    const duration = specs.duration !== undefined 
+      ? specs.duration 
+      : (type === 'restaurant' ? 45 : (type === 'restStop' ? 20 : (type === 'refuel' ? 35 : (type === 'lodging' ? 480 : 60))));
 
-    const newEvent = {
-      day: selectedTimelineDay,
-      place: item.name,
-      time: eventTime,
-      purpose: purposeMap[type] || 'Sightseeing',
-      reason: reasonMap[type] || 'Added by traveler.'
-    };
-
-    // Check if already present to avoid duplicates
-    if (timeline.some(e => e.place.toLowerCase() === item.name.toLowerCase())) {
-      return;
+    let insertIdx = targetIndex;
+    if (insertIdx === null || insertIdx === undefined) {
+      const returnIdx = timeline.findIndex(e => e.isReturnArrival || e.purpose === 'Return Arrival');
+      if (returnIdx > 0) {
+        insertIdx = returnIdx;
+      } else {
+        insertIdx = Math.max(1, timeline.length);
+      }
     }
 
-    const updatedTimeline = [...timeline, newEvent];
-    syncTimeline(updatedTimeline);
+    const newStop = {
+      place: item.name,
+      purpose: purposeMap[type] || 'Sightseeing',
+      reason: `Added from ${type} recommendations.`,
+      duration: duration,
+      day: selectedTimelineDay || 1,
+      isPinned: false
+    };
+
+    handleInsertStop(insertIdx, newStop);
   };
 
   const getDayDrivingMinutes = (dayNum) => {
@@ -579,40 +989,44 @@ const JourneyCompanion = () => {
   const dayDistance = dayMins; // 1 km per min average
   const energyDecrease = Math.round(dayDistance / 4);
 
-  // DELETE Place from Itinerary
-  const handleRemovePlace = (placeName) => {
-    const updatedTimeline = timeline.filter(event => event.place.toLowerCase() !== placeName.toLowerCase());
-    syncTimeline(updatedTimeline);
-  };
-
   // ADD Custom Place
   const handleAddCustomPlace = (e) => {
     e.preventDefault();
     if (!customPlace.name.trim()) return;
 
-    const newEvent = {
-      day: selectedTimelineDay,
-      place: customPlace.name,
-      time: customPlace.time,
-      purpose: customPlace.purpose,
-      reason: customPlace.reason
-    };
-
-    // Check for duplicates
-    if (timeline.some(e => e.place.toLowerCase() === customPlace.name.toLowerCase())) {
+    if (timeline.some(e => (e.place || '').toLowerCase() === customPlace.name.trim().toLowerCase())) {
       alert('This place is already in your itinerary.');
       return;
     }
 
-    const updatedTimeline = [...timeline, newEvent];
-    syncTimeline(updatedTimeline);
+    let insertIdx;
+    if (customPlace.insertPosition === 'auto' || customPlace.insertPosition === undefined) {
+      const returnIdx = timeline.findIndex(e => e.isReturnArrival || e.purpose === 'Return Arrival');
+      insertIdx = returnIdx > 0 ? returnIdx : Math.max(1, timeline.length);
+    } else {
+      insertIdx = Number(customPlace.insertPosition);
+    }
 
-    // Reset input
+    const newStop = {
+      place: customPlace.name.trim(),
+      purpose: customPlace.purpose || 'Sightseeing',
+      reason: customPlace.reason || 'Custom preferred attraction added by traveler.',
+      duration: Number(customPlace.duration || 60),
+      day: selectedTimelineDay || 1,
+      isPinned: Boolean(customPlace.isPinned),
+      pinnedTime: customPlace.isPinned ? customPlace.time : null
+    };
+
+    handleInsertStop(insertIdx, newStop);
+
     setCustomPlace({
       name: '',
       time: '04:00 PM',
       purpose: 'Sightseeing',
-      reason: 'Custom preferred attraction added by traveler.'
+      reason: 'Custom preferred attraction added by traveler.',
+      duration: 60,
+      insertPosition: 'auto',
+      isPinned: false
     });
   };
 
@@ -623,93 +1037,11 @@ const JourneyCompanion = () => {
 
   const checkCardFeasibility = (item, type) => {
     if (!item || !item.name) return { valid: false, reason: "Missing place name" };
-    const defaultTimes = {
-      restaurant: '01:30 PM',
-      restStop: '11:30 AM',
-      lodging: '09:00 PM',
-      attraction: '04:00 PM',
-      refuel: '10:00 AM'
-    };
-    const timeVal = selectedTimes[item.name] || defaultTimes[type] || '04:00 PM';
-    const tripStartTime = formData.startTime;
-    const tripDate = formData.tripDate;
-    
-    // Check opening hours first
     const specs = getLocalSpecs(item.name);
-    const duration = specs.duration !== undefined ? specs.duration : 60;
-    const status = getLocalPlaceTimeStatus(item.name, timeVal);
-    if (status === 'CLOSED') {
-      const openTime = specs.open || specs.openTime || "09:00 AM";
-      const closeTime = specs.close || specs.closeTime || "06:00 PM";
-      return { valid: false, reason: `Closed (Opens: ${openTime} - ${closeTime})` };
+    // Dynamic engine automatically reschedules arrival and successor timings!
+    if (specs && specs.closed) {
+      return { valid: false, reason: "Permanently closed" };
     }
-    if (status === 'NOT ENOUGH TIME') {
-      return { valid: false, reason: 'Not enough visit time' };
-    }
-
-    // Check start time limits
-    if (timeToMinutes(timeVal) < timeToMinutes(tripStartTime)) {
-      return { valid: false, reason: `Before departure (${tripStartTime})` };
-    }
-
-    // Check past time today
-    const startCheck = validateTripStart(tripDate, timeVal);
-    if (!startCheck.valid) {
-      return { valid: false, reason: "Time is in the past today." };
-    }
-
-    // Timeline travel checks
-    if (timeline.length > 0) {
-      const source = timeline[0].place;
-      const destination = formData.destination;
-      
-      const newItem = {
-        day: selectedTimelineDay,
-        place: item.name,
-        time: timeVal,
-        purpose: type === 'restaurant' ? 'Meal Break' : (type === 'restStop' ? 'Rest Stop' : (type === 'lodging' ? 'Overnight Stay' : 'Sightseeing'))
-      };
-
-      // Exclude item by name if already temporarily added, then sort
-      const filteredTimeline = timeline.filter(e => (e.place || "").toLowerCase() !== item.name.toLowerCase());
-      const simulatedTimeline = [...filteredTimeline, newItem].sort((a, b) => {
-        if (a.day !== b.day) return (a.day || 1) - (b.day || 1);
-        return parseTime(a.time, a.day) - parseTime(b.time, b.day);
-      });
-      
-      const idx = simulatedTimeline.findIndex(e => (e.place || "").toLowerCase() === item.name.toLowerCase());
-      
-      // 1. Check preceding waypoint constraints
-      if (idx > 0) {
-        const predecessor = simulatedTimeline[idx - 1];
-        const transit = getLocalTravelOffset(predecessor.place, newItem.place, source, destination);
-        const earliestArrivalStr = getEarliestArrival(predecessor, transit);
-        const earliestArrivalMins = timeToMinutes(earliestArrivalStr);
-        if (timeToMinutes(timeVal) < earliestArrivalMins) {
-          return { 
-            valid: false, 
-            reason: `Unavailable: Earliest arrival after ${predecessor.place} is ${earliestArrivalStr} (transit: ${transit}m)` 
-          };
-        }
-      }
-
-      // 2. Check succeeding waypoint constraints
-      if (idx < simulatedTimeline.length - 1) {
-        const successor = simulatedTimeline[idx + 1];
-        const transitToSuccessor = getLocalTravelOffset(newItem.place, successor.place, source, destination);
-        const endTimeMins = timeToMinutes(timeVal) + duration;
-        const earliestSuccessorArrivalMins = endTimeMins + transitToSuccessor;
-        const successorScheduledMins = timeToMinutes(successor.time);
-        
-        if (successorScheduledMins < earliestSuccessorArrivalMins) {
-          return { 
-            valid: false, 
-            reason: `Overlap conflict: ${successor.place} starts at ${successor.time}, but you can only reach it at ${minutesToTime(earliestSuccessorArrivalMins)} (duration: ${duration}m, transit: ${transitToSuccessor}m)` 
-          };
-        }
-      }
-    }
-
     return { valid: true };
   };
 
@@ -773,7 +1105,7 @@ const JourneyCompanion = () => {
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={() => setActiveTrip(null)}
-              className="px-3 py-1.5 bg-slate-900/50 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
+              className="px-3 py-1.5 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
             >
               Dismiss
             </button>
@@ -809,7 +1141,7 @@ const JourneyCompanion = () => {
               {suggestedFixes.map((fix, idx) => (
                 <div 
                   key={idx} 
-                  className="p-3.5 bg-slate-950/80 border border-slate-850 hover:border-purple-500/30 rounded-xl transition-all flex flex-col justify-between gap-3 group"
+                  className="p-3.5 bg-slate-950/80 border border-slate-800 hover:border-purple-500/30 rounded-xl transition-all flex flex-col justify-between gap-3 group"
                 >
                   <div>
                     <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border inline-block mb-1 tracking-wider ${
@@ -848,11 +1180,151 @@ const JourneyCompanion = () => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setSuggestedFixes([])}
-                className="px-4 py-2 bg-slate-950 hover:bg-slate-850 border border-slate-800 text-slate-450 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-450 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
               >
                 Keep Original
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contextual Stop Insertion Modal */}
+      {insertModalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="relative w-full max-w-md bg-slate-900 border border-purple-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <PlusCircle className="h-4 w-4 text-purple-400" />
+                Insert Stop at Step #{insertModalState.index + 1}
+              </h3>
+              <button
+                onClick={() => setInsertModalState({ isOpen: false, index: 1 })}
+                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Downstream stops, travel legs, and arrival times will automatically reschedule sequentially.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newModalStop.name.trim()) return;
+                handleInsertStop(insertModalState.index, newModalStop);
+                setNewModalStop({
+                  name: '',
+                  purpose: 'Sightseeing',
+                  duration: 60,
+                  isPinned: false,
+                  pinnedTime: ''
+                });
+                setInsertModalState({ isOpen: false, index: 1 });
+              }}
+              className="space-y-3.5"
+            >
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                  Place Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Mysore Sand Sculpture Museum"
+                  value={newModalStop.name}
+                  onChange={(e) => setNewModalStop(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-purple-500/80"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={newModalStop.purpose}
+                    onChange={(e) => setNewModalStop(prev => ({ ...prev, purpose: e.target.value }))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/80"
+                  >
+                    <option value="Sightseeing">Sightseeing</option>
+                    <option value="Meal Break">Meal Break</option>
+                    <option value="Rest Stop">Rest Stop</option>
+                    <option value="EV Charging">EV Charging</option>
+                    <option value="Fuel Station">Fuel Station</option>
+                    <option value="Overnight Stay">Overnight Stay</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    Duration (Minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min="15"
+                    max="360"
+                    step="15"
+                    value={newModalStop.duration}
+                    onChange={(e) => setNewModalStop(prev => ({ ...prev, duration: Number(e.target.value) }))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/80 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-500">Presets:</span>
+                {[15, 30, 45, 60, 90, 120].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => setNewModalStop(prev => ({ ...prev, duration: mins }))}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors ${
+                      newModalStop.duration === mins
+                        ? 'bg-purple-600 text-white font-bold'
+                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {mins}m
+                  </button>
+                ))}
+              </div>
+
+              <div className="pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newModalStop.isPinned}
+                    onChange={(e) => setNewModalStop(prev => ({ ...prev, isPinned: e.target.checked }))}
+                    className="rounded border-slate-700 text-purple-600 focus:ring-purple-500/40"
+                  />
+                  <span className="text-xs text-slate-300 font-medium">
+                    Pin this stop's arrival time (Hard constraint)
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setInsertModalState({ isOpen: false, index: 1 })}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Insert & Reschedule
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -879,7 +1351,7 @@ const JourneyCompanion = () => {
             </h2>
 
             {vehicleLoading ? (
-              <div className="flex flex-col items-center justify-center p-6 bg-slate-950/40 border border-slate-850 rounded-xl mb-4">
+              <div className="flex flex-col items-center justify-center p-6 bg-slate-950/40 border border-slate-800 rounded-xl mb-4">
                 <Loader2 className="animate-spin h-5 w-5 text-purple-500 mb-2" />
                 <span className="text-[10px] text-slate-500">Retrieving vehicle profile...</span>
               </div>
@@ -896,18 +1368,18 @@ const JourneyCompanion = () => {
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2 text-[11px] mb-3">
-                  <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-850">
+                  <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800">
                     <span className="text-slate-500 block text-[9px] font-semibold uppercase">Charge / Fuel</span>
                     <span className="text-slate-200 font-bold">
                       {vehicle.type === 'EV' ? `${vehicle.batteryPercentage}%` : `${vehicle.fuelPercentage}%`}
                     </span>
                   </div>
-                  <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-850">
+                  <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800">
                     <span className="text-slate-500 block text-[9px] font-semibold uppercase">Current Range</span>
                     <span className="text-slate-200 font-bold">{vehicle.range} km</span>
                   </div>
                   {vehicle.type !== 'EV' && (
-                    <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-850 col-span-2">
+                    <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800 col-span-2">
                       <span className="text-slate-500 block text-[9px] font-semibold uppercase">Mileage</span>
                       <span className="text-slate-200 font-bold">{vehicle.mileage} km/l</span>
                     </div>
@@ -917,7 +1389,7 @@ const JourneyCompanion = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/vehicle-setup')}
-                  className="w-full py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-purple-500/30 text-purple-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
+                  className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/30 text-purple-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
                 >
                   Edit Vehicle Profile
                 </button>
@@ -959,7 +1431,7 @@ const JourneyCompanion = () => {
                   )}
                 </div>
                 {sourcePredictions.length > 0 && (
-                  <div className="absolute z-30 w-full mt-1 bg-slate-950 border border-slate-850 rounded-lg shadow-xl max-h-48 overflow-y-auto py-1">
+                  <div className="absolute z-30 w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto py-1">
                     {sourcePredictions.map((pred, i) => (
                       <button
                         key={i}
@@ -993,7 +1465,7 @@ const JourneyCompanion = () => {
                   )}
                 </div>
                 {destPredictions.length > 0 && (
-                  <div className="absolute z-30 w-full mt-1 bg-slate-950 border border-slate-850 rounded-lg shadow-xl max-h-48 overflow-y-auto py-1">
+                  <div className="absolute z-30 w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg shadow-xl max-h-48 overflow-y-auto py-1">
                     {destPredictions.map((pred, i) => (
                       <button
                         key={i}
@@ -1176,7 +1648,7 @@ const JourneyCompanion = () => {
                           className={`py-1.5 px-1.5 rounded border text-[9px] font-bold transition-all cursor-pointer text-center ${
                             selected
                               ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                              : 'bg-slate-950 border-slate-850 text-slate-400 hover:text-slate-250'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-250'
                           }`}
                         >
                           {interest}
@@ -1279,7 +1751,7 @@ const JourneyCompanion = () => {
 
               {/* Daywise tabs inside Waypoints list */}
               {formData.durationDays > 1 && (
-                <div className="flex flex-wrap gap-1.5 mb-3.5 border-b border-slate-850 pb-2">
+                <div className="flex flex-wrap gap-1.5 mb-3.5 border-b border-slate-800 pb-2">
                   {Array.from({ length: formData.durationDays }).map((_, idx) => {
                     const d = idx + 1;
                     return (
@@ -1300,15 +1772,57 @@ const JourneyCompanion = () => {
                 </div>
               )}
 
+              {/* Round-Trip Journey Overview Bar */}
+              {(() => {
+                const activeMetrics = roundTripMetrics || calculateClientRoundTripMetrics(timeline, formData.source, formData.destination);
+                return (
+                  <div className="mb-3.5 p-3 bg-gradient-to-r from-purple-950/40 via-slate-900/60 to-blue-950/40 border border-purple-500/25 rounded-xl">
+                    <div className="flex items-center justify-between text-[11px] mb-2 border-b border-slate-800 pb-1.5">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <RotateCcw className="h-3.5 w-3.5 text-emerald-400" />
+                        Complete Round Trip
+                      </span>
+                      <span className="text-[10px] text-emerald-300 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                        {formData.source} ➔ {formData.destination} ➔ {formData.source}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Total Round-Trip Dist.</span>
+                        <span className="text-white font-mono font-bold">{activeMetrics.totalDistanceKm} km</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Total Driving Time</span>
+                        <span className="text-purple-300 font-mono font-bold">
+                          {activeMetrics.totalDrivingTime || `${Math.floor((activeMetrics.totalTravelTimeMinutes || 0) / 60)}h ${(activeMetrics.totalTravelTimeMinutes || 0) % 60}m`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Expected Final Return</span>
+                        <span className="text-emerald-300 font-mono font-bold">
+                          Day {activeMetrics.finalReturnDay || activeMetrics.returnDay || 1} • {activeMetrics.finalReturnArrival || activeMetrics.expectedReturnTime || '10:00 PM'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Overnight Stay</span>
+                        <span className="text-slate-200 font-semibold truncate block">
+                          {activeMetrics.overnightHalt || (formData.durationDays > 1 ? `${formData.destination} Hotel` : 'None (Single-Day)')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Daywise stats bar */}
-              <div className="grid grid-cols-3 gap-2 text-[10px] mb-3.5 bg-slate-950/50 p-2.5 rounded-xl border border-slate-850">
+              <div className="grid grid-cols-3 gap-2 text-[10px] mb-3.5 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
                 <div className="text-center">
                   <span className="text-slate-550 block text-[8px] font-bold uppercase tracking-wider">Driving Time</span>
                   <span className="text-slate-200 font-bold font-mono">
                     {dayMins < 60 ? `${dayMins}m` : `${Math.floor(dayMins / 60)}h ${dayMins % 60}m`}
                   </span>
                 </div>
-                <div className="text-center border-x border-slate-850">
+                <div className="text-center border-x border-slate-800">
                   <span className="text-slate-550 block text-[8px] font-bold uppercase tracking-wider">Est. Distance</span>
                   <span className="text-slate-200 font-bold font-mono">{dayDistance} km</span>
                 </div>
@@ -1318,33 +1832,209 @@ const JourneyCompanion = () => {
                 </div>
               </div>
 
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1.5 custom-scrollbar">
-                {filteredTimeline.map((event, index) => (
-                  <div key={index} className="flex items-center justify-between p-2.5 bg-slate-950/70 border border-slate-850 rounded-lg group hover:border-purple-500/20 transition-all">
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-purple-300 font-mono bg-purple-500/10 px-1 rounded flex-shrink-0">
-                          {event.time}
-                        </span>
-                        <h4 className="text-xs font-bold text-white truncate max-w-[150px]">{event.place}</h4>
-                      </div>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">{event.purpose}</p>
-                      {event.warning && (
-                        <p className="text-[9px] text-rose-400 leading-tight mt-1 bg-rose-500/10 border border-rose-500/20 rounded px-1.5 py-0.5 whitespace-pre-wrap max-w-[200px]">{event.warning}</p>
-                      )}
-                      {event.autoFixed && (
-                        <p className="text-[9px] text-emerald-400 leading-tight mt-1 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5 whitespace-pre-wrap max-w-[200px]">{event.autoFixMessage || '[Auto-Fixed Slot]'}</p>
-                      )}
-                    </div>
+              <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1.5 custom-scrollbar">
+                {/* Contextual Insert button at the very beginning (after origin departure) */}
+                {filteredTimeline.length > 0 && selectedTimelineDay === 1 && (
+                  <div className="flex justify-center my-1">
                     <button
-                      onClick={() => handleRemovePlace(event.place)}
-                      className="p-1 text-slate-500 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors cursor-pointer opacity-30 group-hover:opacity-100 flex-shrink-0"
-                      title="Delete waypoint"
+                      type="button"
+                      onClick={() => setInsertModalState({ isOpen: true, index: 1 })}
+                      className="px-2.5 py-0.5 bg-slate-900/80 hover:bg-purple-600/80 border border-slate-800 hover:border-purple-500/50 text-slate-400 hover:text-white rounded-full text-[9px] font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Plus className="h-2.5 w-2.5" />
+                      Insert Stop After Departure
                     </button>
                   </div>
-                ))}
+                )}
+
+                {filteredTimeline.map((event, index) => {
+                  const globalIndex = timeline.findIndex(e => (e.id && event.id) ? e.id === event.id : (e.place === event.place && e.time === event.time));
+                  const isFirstStop = globalIndex <= 0;
+                  const isReturnArrival = event.isReturnArrival || event.purpose === 'Return Arrival' || (event.place && event.place.toLowerCase().includes(`arrive at ${(formData.source || '').toLowerCase()}`));
+                  const isOvernight = event.isOvernight || event.purpose === 'Overnight Stay' || event.purpose === 'Resort Check-in';
+
+                  return (
+                    <React.Fragment key={event.id || `${event.place}-${index}`}>
+                      {/* Insertion divider between intermediate stops */}
+                      {globalIndex > 1 && !isReturnArrival && (
+                        <div className="relative flex items-center justify-center my-1 group/divider">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-dashed border-slate-800 group-hover/divider:border-purple-500/40 transition-colors"></div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setInsertModalState({ isOpen: true, index: globalIndex })}
+                            className="relative z-10 px-2 py-0.5 bg-slate-900 group-hover/divider:bg-purple-600 border border-slate-800 group-hover/divider:border-purple-500 text-slate-500 group-hover/divider:text-white rounded-full text-[9px] font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer scale-90 group-hover/divider:scale-100"
+                            title="Insert stop here"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                            Insert Stop Here
+                          </button>
+                        </div>
+                      )}
+
+                      <div 
+                        className={`flex items-start justify-between p-2.5 rounded-lg group transition-all border ${
+                          isReturnArrival 
+                            ? 'bg-emerald-950/30 border-emerald-500/40 shadow-emerald-950/20 shadow-md'
+                            : isOvernight 
+                              ? 'bg-indigo-950/30 border-indigo-500/40 shadow-indigo-950/20 shadow-md'
+                              : 'bg-slate-950/70 border-slate-800 hover:border-purple-500/20'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[10px] font-bold font-mono px-1 rounded flex-shrink-0 ${
+                              isReturnArrival 
+                                ? 'text-emerald-300 bg-emerald-500/20 border border-emerald-500/30'
+                                : isOvernight
+                                  ? 'text-indigo-300 bg-indigo-500/20 border border-indigo-500/30'
+                                  : 'text-purple-300 bg-purple-500/10'
+                            }`}>
+                              {event.time}
+                            </span>
+                            <h4 className="text-xs font-bold text-white truncate max-w-[150px]">{event.place}</h4>
+                            {event.isPinned && (
+                              <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[8px] font-extrabold uppercase rounded tracking-wider flex items-center gap-0.5">
+                                <Lock className="h-2 w-2" /> Pinned
+                              </span>
+                            )}
+                            {isReturnArrival && (
+                              <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[8px] font-extrabold uppercase rounded tracking-wider">
+                                Origin Return
+                              </span>
+                            )}
+                            {isOvernight && (
+                              <span className="px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[8px] font-extrabold uppercase rounded tracking-wider">
+                                Overnight
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-[10px] text-slate-500 truncate">{event.purpose}</p>
+                            {event.travelTimeFromPrevious && (
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                • +{event.travelTimeFromPrevious} drive ({event.distanceFromPrevious || '0 km'})
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Duration Adjuster */}
+                          {!isFirstStop && !isReturnArrival && (
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <span className="text-[9px] text-slate-500 flex items-center gap-0.5">
+                                <Clock className="h-2.5 w-2.5 text-slate-400" />
+                                Visit:
+                              </span>
+                              <div className="flex items-center border border-slate-800 rounded bg-slate-900/80 px-1 py-0.5 gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateDuration(globalIndex, event.id, (event.duration || 60) - 15)}
+                                  disabled={(event.duration || 60) <= 15}
+                                  className="text-[9px] font-bold text-slate-400 hover:text-white disabled:opacity-30 px-1 cursor-pointer"
+                                  title="Reduce duration by 15 mins"
+                                >
+                                  -15m
+                                </button>
+                                <span className="text-[9px] font-mono font-bold text-purple-300 px-1">
+                                  {event.duration || 60}m
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateDuration(globalIndex, event.id, (event.duration || 60) + 15)}
+                                  disabled={(event.duration || 60) >= 300}
+                                  className="text-[9px] font-bold text-slate-400 hover:text-white disabled:opacity-30 px-1 cursor-pointer"
+                                  title="Add 15 mins duration"
+                                >
+                                  +15m
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {event.warning && (
+                            <p className="text-[9px] text-rose-400 leading-tight mt-1 bg-rose-500/10 border border-rose-500/20 rounded px-1.5 py-0.5 whitespace-pre-wrap max-w-[200px]">{event.warning}</p>
+                          )}
+                          {event.autoFixed && (
+                            <p className="text-[9px] text-emerald-400 leading-tight mt-1 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5 whitespace-pre-wrap max-w-[200px]">{event.autoFixMessage || '[Auto-Fixed Slot]'}</p>
+                          )}
+                        </div>
+
+                        {/* Action buttons on stop */}
+                        {!isFirstStop && !isReturnArrival && (
+                          <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                            {/* Pin Toggle */}
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePin(globalIndex, event.id, event.isPinned, event.time)}
+                              className={`p-1 rounded transition-colors cursor-pointer ${
+                                event.isPinned
+                                  ? 'text-purple-400 bg-purple-500/20 border border-purple-500/30'
+                                  : 'text-slate-500 hover:text-purple-400 hover:bg-slate-800'
+                              }`}
+                              title={event.isPinned ? "Unlock pinned time" : "Lock / Pin this time"}
+                            >
+                              <Pin className="h-3 w-3" />
+                            </button>
+
+                            {/* Move Up */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStop(globalIndex, globalIndex - 1)}
+                              disabled={globalIndex <= 1}
+                              className="p-1 text-slate-500 hover:text-white disabled:opacity-20 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Move Stop Up"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </button>
+
+                            {/* Move Down */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStop(globalIndex, globalIndex + 1)}
+                              disabled={globalIndex >= timeline.length - 2}
+                              className="p-1 text-slate-500 hover:text-white disabled:opacity-20 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Move Stop Down"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+
+                            {/* Delete Stop */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveStop(globalIndex, event.id)}
+                              className="p-1 text-slate-500 hover:text-red-400 rounded hover:bg-red-500/10 transition-colors cursor-pointer"
+                              title="Delete stop"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
+
+                {/* Contextual Insert before Return Arrival */}
+                {filteredTimeline.length > 0 && (
+                  <div className="flex justify-center my-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const returnIdx = timeline.findIndex(e => e.isReturnArrival || e.purpose === 'Return Arrival');
+                        setInsertModalState({ 
+                          isOpen: true, 
+                          index: returnIdx > 0 ? returnIdx : Math.max(1, timeline.length) 
+                        });
+                      }}
+                      className="px-2.5 py-0.5 bg-slate-900/80 hover:bg-purple-600/80 border border-slate-800 hover:border-purple-500/50 text-slate-400 hover:text-white rounded-full text-[9px] font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                      Insert Stop Before Return
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Not Added due to Timing Section */}
@@ -1356,7 +2046,7 @@ const JourneyCompanion = () => {
                   </h4>
                   <div className="space-y-2 max-h-[150px] overflow-y-auto custom-scrollbar">
                     {infeasible.map((item, idx) => (
-                      <div key={idx} className="p-2 bg-slate-900/50 border border-slate-850 rounded-lg">
+                      <div key={idx} className="p-2 bg-slate-900/50 border border-slate-800 rounded-lg">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-bold text-slate-350">{item.place}</span>
                           <span className="text-[9px] text-amber-500/80 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">Infeasible</span>
@@ -1375,7 +2065,7 @@ const JourneyCompanion = () => {
         <div className="lg:col-span-8 flex flex-col min-h-[480px]">
           {recommendations ? (
             <div className="flex flex-col h-full bg-slate-900/40 border border-slate-800 rounded-2xl p-6 shadow-xl animate-scale-up">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-850 pb-4 mb-4 gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 mb-4 gap-4">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <Sparkles className="h-4.5 w-4.5 text-yellow-400" />
                   Recommendations for {recommendations.destination}
@@ -1426,7 +2116,7 @@ const JourneyCompanion = () => {
               )}
 
               {/* Tabs */}
-              <div className="flex flex-wrap gap-1.5 mb-4 border-b border-slate-850 pb-2">
+              <div className="flex flex-wrap gap-1.5 mb-4 border-b border-slate-800 pb-2">
                 {[
                   { id: 'attractions', label: 'Attractions' },
                   { id: 'restaurants', label: 'Restaurants' },
@@ -1470,7 +2160,7 @@ const JourneyCompanion = () => {
                             <div 
                               key={i} 
                               onClick={() => setSelectedPlace({ item, type: 'attraction' })}
-                              className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
+                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
                             >
                               <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Info className="h-3.5 w-3.5 text-purple-400" />
@@ -1543,7 +2233,7 @@ const JourneyCompanion = () => {
                         {filtered.length > 5 && (
                           <button
                             onClick={() => setExpandedState(prev => ({ ...prev, attractions: !prev.attractions }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-850 rounded-lg hover:bg-slate-900/50"
+                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
                           >
                             {expandedState.attractions ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
                           </button>
@@ -1570,7 +2260,7 @@ const JourneyCompanion = () => {
                             <div 
                               key={i} 
                               onClick={() => setSelectedPlace({ item, type: 'restaurant' })}
-                              className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
+                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
                             >
                               <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Info className="h-3.5 w-3.5 text-purple-400" />
@@ -1644,7 +2334,7 @@ const JourneyCompanion = () => {
                         {filtered.length > 5 && (
                           <button
                             onClick={() => setExpandedState(prev => ({ ...prev, restaurants: !prev.restaurants }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-850 rounded-lg hover:bg-slate-900/50"
+                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
                           >
                             {expandedState.restaurants ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
                           </button>
@@ -1671,7 +2361,7 @@ const JourneyCompanion = () => {
                             <div 
                               key={i} 
                               onClick={() => setSelectedPlace({ item, type: 'restStop' })}
-                              className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
+                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
                             >
                               <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Info className="h-3.5 w-3.5 text-purple-400" />
@@ -1687,7 +2377,7 @@ const JourneyCompanion = () => {
                                 </div>
                                 <div className="flex flex-wrap gap-1">
                                   {item.facilities?.map((f, idx) => (
-                                    <span key={idx} className="px-1.5 py-0.5 bg-slate-900 border border-slate-850 rounded text-slate-400 text-[9px]">
+                                    <span key={idx} className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400 text-[9px]">
                                       ✓ {f}
                                     </span>
                                   ))}
@@ -1747,7 +2437,7 @@ const JourneyCompanion = () => {
                         {filtered.length > 5 && (
                           <button
                             onClick={() => setExpandedState(prev => ({ ...prev, restStops: !prev.restStops }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-850 rounded-lg hover:bg-slate-900/50"
+                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
                           >
                             {expandedState.restStops ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
                           </button>
@@ -1774,7 +2464,7 @@ const JourneyCompanion = () => {
                             <div 
                               key={i} 
                               onClick={() => setSelectedPlace({ item, type: 'lodging' })}
-                              className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
+                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
                             >
                               <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Info className="h-3.5 w-3.5 text-purple-400" />
@@ -1846,7 +2536,7 @@ const JourneyCompanion = () => {
                         {filtered.length > 5 && (
                           <button
                             onClick={() => setExpandedState(prev => ({ ...prev, lodging: !prev.lodging }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-850 rounded-lg hover:bg-slate-900/50"
+                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
                           >
                             {expandedState.lodging ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
                           </button>
@@ -1869,7 +2559,7 @@ const JourneyCompanion = () => {
                           <div 
                             key={i} 
                             onClick={() => setSelectedPlace({ item, type: 'refuel' })}
-                            className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/20 transition-all flex justify-between items-center cursor-pointer hover:bg-slate-900/40 relative group"
+                            className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex justify-between items-center cursor-pointer hover:bg-slate-900/40 relative group"
                           >
                             <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
                               <Info className="h-3.5 w-3.5 text-purple-400" />
@@ -1894,7 +2584,7 @@ const JourneyCompanion = () => {
                         {filtered.length > 5 && (
                           <button
                             onClick={() => setExpandedState(prev => ({ ...prev, refuel: !prev.refuel }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-850 rounded-lg hover:bg-slate-900/50"
+                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
                           >
                             {expandedState.refuel ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
                           </button>
@@ -1908,7 +2598,7 @@ const JourneyCompanion = () => {
 
                 {/* CUSTOM ADD FORM TAB */}
                 {activeTab === 'custom' && (
-                  <form onSubmit={handleAddCustomPlace} className="p-5 bg-slate-950/60 border border-slate-850 rounded-xl space-y-4">
+                  <form onSubmit={handleAddCustomPlace} className="p-5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-4">
                     <h4 className="font-bold text-white text-sm flex items-center gap-2">
                       <PlusCircle className="text-purple-400 h-4.5 w-4.5" />
                       Add Custom Waypoint Stop
@@ -1916,7 +2606,7 @@ const JourneyCompanion = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Place Name</label>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Place Name *</label>
                         <input
                           type="text"
                           name="name"
@@ -1929,74 +2619,185 @@ const JourneyCompanion = () => {
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Arrival Time</label>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Category / Purpose</label>
                         <select
-                          name="time"
-                          value={customPlace.time}
+                          name="purpose"
+                          value={customPlace.purpose}
                           onChange={handleCustomPlaceChange}
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/60 cursor-pointer"
                         >
-                          {timeOptions.map((time, idx) => (
-                            <option key={idx} value={time}>{time}</option>
-                          ))}
+                          <option value="Sightseeing">Sightseeing</option>
+                          <option value="Meal Break">Meal Break</option>
+                          <option value="Rest Stop">Rest Stop</option>
+                          <option value="EV Charging">EV Charging</option>
+                          <option value="Fuel Station">Fuel Station</option>
+                          <option value="Overnight Stay">Overnight Stay</option>
                         </select>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Purpose / Type</label>
-                        <input
-                          type="text"
-                          name="purpose"
-                          value={customPlace.purpose}
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Insert Position
+                        </label>
+                        <select
+                          name="insertPosition"
+                          value={customPlace.insertPosition || 'auto'}
                           onChange={handleCustomPlaceChange}
-                          required
-                          placeholder="e.g. Dinner, Tea Break, Sightseeing"
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/60"
-                        />
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/60 cursor-pointer"
+                        >
+                          <option value="auto">Auto (Before Return Journey)</option>
+                          {timeline.map((event, idx) => (
+                            <option key={idx} value={idx + 1}>
+                              After Step {idx + 1}: {event.place}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Recommendation / Note</label>
+                        <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                          Duration (Minutes)
+                        </label>
                         <input
-                          type="text"
-                          name="reason"
-                          value={customPlace.reason}
+                          type="number"
+                          name="duration"
+                          min="15"
+                          max="360"
+                          step="15"
+                          value={customPlace.duration || 60}
                           onChange={handleCustomPlaceChange}
-                          placeholder="e.g. Scenic resort view with high local ratings."
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/60"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/60 font-mono"
                         />
                       </div>
                     </div>
 
-                    {(() => {
-                      const customFeasibility = checkCardFeasibility({ name: customPlace.name }, 'attraction');
-                      const isBtnDisabled = !customPlace.name.trim() || !customFeasibility.valid;
-                      return (
-                        <div className="space-y-1.5">
-                          <button
-                            type="submit"
-                            disabled={isBtnDisabled}
-                            className={`px-4 py-2 font-semibold text-xs rounded-lg transition-all flex items-center gap-1 ${
-                              isBtnDisabled
-                                ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'
-                                : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white cursor-pointer shadow-md'
-                            }`}
-                          >
-                            <Plus className="h-4 w-4" />
-                            Add to Itinerary
-                          </button>
-                          {customPlace.name.trim() && !customFeasibility.valid && (
-                            <span className="text-[10px] text-rose-400 block font-medium">
-                              ⚠️ {customFeasibility.reason}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* Presets */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500">Presets:</span>
+                      {[15, 30, 45, 60, 90, 120].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          onClick={() => setCustomPlace(prev => ({ ...prev, duration: mins }))}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors ${
+                            (customPlace.duration || 60) === mins
+                              ? 'bg-purple-600 text-white font-bold'
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {mins}m
+                        </button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Recommendation / Note</label>
+                      <input
+                        type="text"
+                        name="reason"
+                        value={customPlace.reason}
+                        onChange={handleCustomPlaceChange}
+                        placeholder="e.g. Scenic resort view with high local ratings."
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-purple-500/60"
+                      />
+                    </div>
+
+                    <div className="pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(customPlace.isPinned)}
+                          onChange={(e) => setCustomPlace(prev => ({ ...prev, isPinned: e.target.checked }))}
+                          className="rounded border-slate-700 text-purple-600 focus:ring-purple-500/40"
+                        />
+                        <span className="text-xs text-slate-300 font-medium">
+                          Pin this stop's arrival time (Hard constraint)
+                        </span>
+                      </label>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      <button
+                        type="submit"
+                        disabled={!customPlace.name.trim()}
+                        className={`px-4 py-2 font-semibold text-xs rounded-lg transition-all flex items-center gap-1 ${
+                          !customPlace.name.trim()
+                            ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'
+                            : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white cursor-pointer shadow-md'
+                        }`}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Stop & Auto-Reschedule
+                      </button>
+                    </div>
                   </form>
                 )}
+              </div>
+            </div>
+          ) : infeasibilityDetails ? (
+            <div className="flex-1 bg-slate-900/60 border border-amber-500/30 rounded-2xl p-6 shadow-2xl flex flex-col justify-center animate-scale-up">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <ShieldAlert className="h-6 w-6 animate-pulse" />
+                </div>
+                <div>
+                  <span className="px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[10px] font-extrabold uppercase tracking-wider rounded">
+                    Feasibility Constraint Alert
+                  </span>
+                  <h3 className="text-lg font-bold text-white mt-1">
+                    Complete Round Trip Infeasible within {formData.durationDays} Day{formData.durationDays > 1 ? 's' : ''}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl mb-5 space-y-2">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Constraint Analysis</h4>
+                <p className="text-xs text-amber-200/90 leading-relaxed font-medium">
+                  {infeasibilityDetails.reason}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  DriveSentra AI enforces complete round trips back to <strong className="text-slate-200">{formData.source}</strong> to guarantee traveler safety and avoid incomplete or stranded itineraries.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-yellow-400" />
+                  Recommended Feasible Alternatives:
+                </h4>
+                <div className="space-y-2">
+                  {(infeasibilityDetails.alternatives || []).map((alt, i) => (
+                    <div 
+                      key={i} 
+                      className="p-3 bg-slate-950/60 border border-slate-800 hover:border-purple-500/40 rounded-xl flex items-center justify-between gap-3 transition-all"
+                    >
+                      <div className="flex items-center gap-2.5 text-xs text-slate-300">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                        <span>{alt}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyInfeasibleAlternative(alt)}
+                        className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-200 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+                      >
+                        Apply Alternative
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center text-xs text-slate-500">
+                <span>Safe Driving Limit: Max 10h driving / day</span>
+                <button
+                  type="button"
+                  onClick={() => setInfeasibilityDetails(null)}
+                  className="text-slate-400 hover:text-white underline cursor-pointer"
+                >
+                  Dismiss Alert
+                </button>
               </div>
             </div>
           ) : (
@@ -2059,7 +2860,7 @@ const JourneyCompanion = () => {
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500"></div>
               
               {/* Header */}
-              <div className="p-6 border-b border-slate-850 flex items-start justify-between mt-1.5">
+              <div className="p-6 border-b border-slate-800 flex items-start justify-between mt-1.5">
                 <div className="space-y-1">
                   <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border tracking-wider ${
                     type === 'attraction' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
@@ -2087,7 +2888,7 @@ const JourneyCompanion = () => {
                 </div>
                 <button
                   onClick={() => setSelectedPlace(null)}
-                  className="p-1.5 rounded-lg bg-slate-800/40 border border-slate-850 text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  className="p-1.5 rounded-lg bg-slate-800/40 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
                 >
                   <span className="text-sm font-semibold px-1">✕</span>
                 </button>
@@ -2122,7 +2923,7 @@ const JourneyCompanion = () => {
                       <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facilities</h4>
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {item.facilities.map((f, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-slate-950 border border-slate-850 rounded text-slate-300 text-[10px]">
+                          <span key={idx} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-slate-300 text-[10px]">
                             ✓ {f}
                           </span>
                         ))}
@@ -2134,7 +2935,7 @@ const JourneyCompanion = () => {
                       <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tags</h4>
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {item.tags.map((tag, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-slate-950 text-slate-400 text-[9px] rounded-full border border-slate-850">
+                          <span key={idx} className="px-2 py-0.5 bg-slate-950 text-slate-400 text-[9px] rounded-full border border-slate-800">
                             #{tag}
                           </span>
                         ))}
@@ -2143,7 +2944,7 @@ const JourneyCompanion = () => {
                   )}
                 </div>
 
-                <hr className="border-slate-850" />
+                <hr className="border-slate-800" />
 
                 {/* Opening Hours & Best time */}
                 <div className="grid grid-cols-2 gap-4">
@@ -2171,12 +2972,12 @@ const JourneyCompanion = () => {
                   )}
                 </div>
 
-                <hr className="border-slate-850" />
+                <hr className="border-slate-800" />
 
                 {/* Visit Window Details */}
                 <div className="space-y-4">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Visit Duration details</h4>
-                  <div className="bg-slate-950/80 border border-slate-850 rounded-xl p-4 space-y-3">
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-slate-400">Available time at arrival:</span>
                       <span className={`font-semibold font-mono ${
@@ -2194,7 +2995,7 @@ const JourneyCompanion = () => {
                   </div>
                 </div>
 
-                <hr className="border-slate-850" />
+                <hr className="border-slate-800" />
 
                 {/* Feasibility Status Check */}
                 <div className="space-y-3">
@@ -2226,7 +3027,7 @@ const JourneyCompanion = () => {
               </div>
 
               {/* Action footer */}
-              <div className="p-6 border-t border-slate-850 bg-slate-950/40 flex flex-col gap-3">
+              <div className="p-6 border-t border-slate-800 bg-slate-950/40 flex flex-col gap-3">
                 {added ? (
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">

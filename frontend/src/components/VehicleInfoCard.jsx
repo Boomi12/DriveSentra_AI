@@ -20,7 +20,7 @@ const VehicleInfoCard = ({ vehicle, className = '', onEditClick }) => {
       <div>
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2.5">
-            <div className={`p-2.5 rounded-xl bg-slate-950 border border-slate-850 ${isEV ? 'text-purple-400' : 'text-blue-400'}`}>
+            <div className={`p-2.5 rounded-xl bg-slate-950 border border-slate-800 ${isEV ? 'text-purple-400' : 'text-blue-400'}`}>
               <Car className="h-5 w-5" />
             </div>
             <div>
@@ -48,7 +48,7 @@ const VehicleInfoCard = ({ vehicle, className = '', onEditClick }) => {
               <span>{isEV ? 'BATTERY CHARGE' : 'FUEL LEVEL'}</span>
               <span className="font-bold">{isEV ? batteryPercentage : fuelPercentage}%</span>
             </div>
-            <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+            <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
               <div
                 className={`h-full transition-all duration-500 rounded-full ${
                   (isEV ? batteryPercentage : fuelPercentage) < 25
@@ -63,7 +63,7 @@ const VehicleInfoCard = ({ vehicle, className = '', onEditClick }) => {
           </div>
 
           <div className="grid grid-cols-2 gap-3.5">
-            <div className="p-3 bg-slate-950 border border-slate-850/80 rounded-xl">
+            <div className="p-3 bg-slate-950 border border-slate-800/80 rounded-xl">
               <span className="block text-[9px] text-slate-500 uppercase font-semibold">REMAINING RANGE</span>
               <span className={`inline-flex items-center gap-1 mt-1 text-sm font-extrabold ${isEV ? 'text-purple-300' : 'text-blue-300'}`}>
                 {isEV ? <Zap className="h-3.5 w-3.5 text-yellow-400" /> : <Fuel className="h-3.5 w-3.5 text-slate-400" />}
@@ -71,7 +71,7 @@ const VehicleInfoCard = ({ vehicle, className = '', onEditClick }) => {
               </span>
             </div>
 
-            <div className="p-3 bg-slate-950 border border-slate-850/80 rounded-xl">
+            <div className="p-3 bg-slate-950 border border-slate-800/80 rounded-xl">
               <span className="block text-[9px] text-slate-500 uppercase font-semibold">{isEV ? 'DRIVETRAIN' : 'MILEAGE'}</span>
               <span className="inline-flex items-center gap-1 mt-1 text-xs font-bold text-slate-300">
                 {isEV ? 'Pure Electric' : `${mileage} km/l`}
@@ -79,7 +79,7 @@ const VehicleInfoCard = ({ vehicle, className = '', onEditClick }) => {
             </div>
           </div>
 
-          <div className="pt-2 border-t border-slate-850/60 space-y-1.5 text-xs">
+          <div className="pt-2 border-t border-slate-800/60 space-y-1.5 text-xs">
             <div className="flex justify-between">
               <span className="text-slate-500">Owner Name:</span>
               <span className="text-slate-300 font-medium">{ownerName}</span>

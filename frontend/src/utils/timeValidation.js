@@ -1,4 +1,4 @@
-// Frontend Time Validation Utility for GuardianDrive AI
+// Frontend Time Validation Utility for DriveSentra AI
 
 // Retrieve current date in YYYY-MM-DD format
 export function getCurrentDate() {
@@ -406,24 +406,37 @@ export function getLocalTravelOffset(fromPlace, toPlace, source, destination) {
   if (!f || !t) return 0;
   if (f === t) return 0;
 
-  const isFromSrc = f === src || f.includes("start from");
-  const isToDst = t === dst || t.includes("arrive at") || t.includes("arrive in");
+  const isFromSrc = f === src || f.includes(src) || f.includes("start from") || f.includes("depart from " + src);
+  const isToDst = t === dst || t.includes(dst) || t.includes("arrive at " + dst) || t.includes("arrive in " + dst);
 
-  // Route drives
-  if (isFromSrc && isToDst) {
-    if (src.includes("bangalore") && dst.includes("mysore")) return 195;
-    if (src.includes("bangalore") && dst.includes("coorg")) return 330;
-    if (src.includes("bangalore") && dst.includes("ooty")) return 375;
-    if (src.includes("bangalore") && dst.includes("chikkamagaluru")) return 285;
+  const isFromDst = f === dst || f.includes(dst) || f.includes("check out from") || f.includes("depart from " + dst);
+  const isToSrc = t === src || t.includes(src) || t.includes("arrive at " + src) || t.includes("return to " + src);
+
+  // Highway stop identifier
+  const isHighwayStop = (name) => {
+    return name.includes("highway") || name.includes("plaza") || name.includes("food court") || 
+           name.includes("coffee day") || name.includes("spices hub") || name.includes("shell select") || 
+           name.includes("a2b") || name.includes("rest area") || name.includes("rest stop") ||
+           name.includes("maddur") || name.includes("kamath") || name.includes("expressway");
+  };
+
+  // Major highway routes (Bidirectional: Onward or Return)
+  if ((isFromSrc && isToDst) || (isFromDst && isToSrc)) {
+    if ((src.includes("bangalore") && dst.includes("mysore")) || (src.includes("mysore") && dst.includes("bangalore"))) return 195;
+    if ((src.includes("bangalore") && dst.includes("coorg")) || (src.includes("coorg") && dst.includes("bangalore"))) return 330;
+    if ((src.includes("bangalore") && dst.includes("ooty")) || (src.includes("ooty") && dst.includes("bangalore"))) return 375;
+    if ((src.includes("bangalore") && dst.includes("chikkamagaluru")) || (src.includes("chikkamagaluru") && dst.includes("bangalore"))) return 285;
+    if ((src.includes("bangalore") && dst.includes("chennai")) || (src.includes("chennai") && dst.includes("bangalore"))) return 360;
     return 180;
   }
 
-  const isHighwayStop = (name) => {
-    return name.includes("highway") || name.includes("plaza") || name.includes("food court") || name.includes("coffee day") || name.includes("spices hub") || name.includes("shell select") || name.includes("a2b");
-  };
+  // Onward Highway stop checks
+  if (isFromSrc && isHighwayStop(t)) return (src.includes("bangalore") && dst.includes("mysore")) ? 90 : 120;
+  if (isHighwayStop(f) && isToDst) return (src.includes("bangalore") && dst.includes("mysore")) ? 105 : 120;
 
-  if (isFromSrc && isHighwayStop(t)) return src.includes("bangalore") && dst.includes("mysore") ? 90 : 120;
-  if (isHighwayStop(f) && isToDst) return src.includes("bangalore") && dst.includes("mysore") ? 105 : 120;
+  // Return Leg Highway stop checks
+  if (isFromDst && isHighwayStop(t)) return (src.includes("bangalore") && dst.includes("mysore")) ? 90 : 120;
+  if (isHighwayStop(f) && isToSrc) return (src.includes("bangalore") && dst.includes("mysore")) ? 105 : 120;
 
   // Local destination transitions
   let hash = 0;
@@ -569,4 +582,174 @@ export function getValidationMessage(reason) {
     "NOT_ENOUGH_TIME": "Not enough visit time remaining before closing."
   };
   return messages[reason] || "Schedule validation conflict.";
+}
+
+// Client-side Round Trip Metrics Calculation
+export function calculateClientRoundTripMetrics(timeline, source, destination) {
+  if (!timeline || timeline.length === 0) {
+    return {
+      totalDistanceKm: 0,
+      totalDrivingMins: 0,
+      totalDrivingTime: "0h",
+      expectedReturnTime: "N/A",
+      returnDay: 1,
+      overnightHalt: null
+    };
+  }
+
+  let totalDrivingMins = 0;
+  let overnightHalt = null;
+
+  for (let i = 0; i < timeline.length; i++) {
+    const item = timeline[i];
+    if (item.travelTimeFromPrevious && item.travelTimeFromPrevious !== "0m") {
+      const matchH = item.travelTimeFromPrevious.match(/(\d+)h/);
+      const matchM = item.travelTimeFromPrevious.match(/(\d+)m/);
+      const h = matchH ? parseInt(matchH[1], 10) : 0;
+      const m = matchM ? parseInt(matchM[1], 10) : 0;
+      totalDrivingMins += (h * 60 + m);
+    }
+    if (item.purpose === "Overnight Stay" || item.purpose === "Resort Check-in") {
+      overnightHalt = item.place.replace("Overnight Stay at ", "").replace("Check-in at ", "");
+    }
+  }
+
+  const lastItem = timeline[timeline.length - 1];
+  const returnDay = lastItem.day || 1;
+  const totalDistanceKm = Math.round((totalDrivingMins / 60) * 65);
+  const hrs = Math.floor(totalDrivingMins / 60);
+  const mins = totalDrivingMins % 60;
+  const totalDrivingTime = mins === 0 ? `${hrs}h` : `${hrs}h ${mins}m`;
+
+  return {
+    totalDistanceKm,
+    totalDrivingMins,
+    totalDrivingTime,
+    expectedReturnTime: lastItem.time || "N/A",
+    returnDay,
+    overnightHalt
+  };
+}
+
+// Client-side sequential itinerary recalculation engine
+export function recalculateScheduleClient(timeline, tripDetails = {}) {
+  if (!timeline || timeline.length === 0) return [];
+  const {
+    source = "Bangalore",
+    destination = "Mysore",
+    startTime = "09:00 AM"
+  } = tripDetails;
+
+  const result = [];
+  let currentDay = 1;
+  let currentMinutes = timeToMinutes(startTime);
+  let previousPlace = source;
+
+  for (let i = 0; i < timeline.length; i++) {
+    const raw = timeline[i];
+    const item = { ...raw };
+
+    const isDeparture = i === 0 || item.purpose === 'Departure';
+    const isReturn = item.purpose === 'Return Arrival' || item.isReturnArrival || item.place.toLowerCase().includes(`arrive at ${source.toLowerCase()}`);
+    const isOvernight = item.purpose === 'Overnight Stay' || item.purpose === 'Resort Check-in' || item.isOvernight;
+
+    // Day change / overnight check
+    if (i > 0) {
+      const prevStop = result[i - 1];
+      const prevWasOvernight = prevStop.isOvernight || prevStop.purpose === 'Overnight Stay';
+      if (prevWasOvernight || (item.day && item.day > prevStop.day)) {
+        currentDay = (prevStop.day || 1) + 1;
+        currentMinutes = timeToMinutes("08:30 AM");
+        previousPlace = prevStop.place;
+      }
+    }
+    item.day = currentDay;
+
+    // Transit from previous place
+    let transit = 0;
+    if (i > 0) {
+      transit = getLocalTravelOffset(previousPlace, item.place, source, destination);
+      currentMinutes += transit;
+    }
+
+    item.travelTimeFromPrevious = transit > 0 ? (transit >= 60 ? `${Math.floor(transit/60)}h ${transit%60}m` : `${transit}m`) : '0m';
+    const arrivalTimeStr = minutesToTime(currentMinutes);
+
+    // Duration determination
+    const specs = getLocalSpecs(item.place) || {};
+    let duration = 60;
+    if (isDeparture || isReturn) {
+      duration = 0;
+    } else if (isOvernight) {
+      duration = 600;
+    } else if (item.duration !== undefined && !isNaN(Number(item.duration))) {
+      duration = Number(item.duration);
+    } else if (item.purpose === 'EV Charging' || item.place.toLowerCase().includes('charger')) {
+      duration = 40;
+    } else if (item.purpose === 'Refueling' || item.place.toLowerCase().includes('petrol')) {
+      duration = 15;
+    } else if (item.purpose === 'Rest Stop' || item.purpose === 'Rest & Coffee') {
+      duration = 30;
+    } else if (item.purpose === 'Meal Break' || item.purpose === 'Lunch Break' || item.purpose === 'Dinner Break') {
+      duration = specs.duration || 60;
+    } else if (specs.duration !== undefined) {
+      duration = specs.duration;
+    }
+    item.duration = duration;
+
+    // Pinned constraints vs opening hours
+    let waitMinutes = 0;
+    let activityStartMinutes = currentMinutes;
+
+    if (item.isPinned && item.pinnedTime) {
+      item.time = item.pinnedTime;
+      const pinnedMinutes = timeToMinutes(item.pinnedTime);
+      if (currentMinutes > pinnedMinutes) {
+        item.hasConflict = true;
+        item.isPinnedConflict = true;
+        item.estimatedArrival = arrivalTimeStr;
+        item.warning = `Pinned reservation conflict: Cannot reach pinned reservation at ${item.pinnedTime}. Estimated arrival is ${arrivalTimeStr}.`;
+        activityStartMinutes = currentMinutes;
+      } else {
+        waitMinutes = pinnedMinutes - currentMinutes;
+        activityStartMinutes = pinnedMinutes;
+        item.hasConflict = false;
+        item.isPinnedConflict = false;
+        item.warning = null;
+      }
+    } else {
+      item.time = arrivalTimeStr;
+      item.hasConflict = false;
+      item.isPinnedConflict = false;
+      item.warning = null;
+      const status = getLocalPlaceTimeStatus(item.place, arrivalTimeStr);
+      if (status === 'CLOSED') {
+        const openTime = specs.open || specs.openTime || "09:00 AM";
+        const closeTime = specs.close || specs.closeTime || "06:00 PM";
+        const openMins = timeToMinutes(openTime);
+        if (currentMinutes < openMins) {
+          waitMinutes = openMins - currentMinutes;
+          activityStartMinutes = openMins;
+          item.isOpen = true;
+        } else {
+          item.isOpen = false;
+          item.warning = `${item.place} is closed at arrival time ${arrivalTimeStr}. (Operating hours: ${openTime} - ${closeTime}).`;
+        }
+      } else {
+        item.isOpen = true;
+      }
+    }
+
+    const departureMinutes = activityStartMinutes + duration;
+    item.endTime = minutesToTime(departureMinutes);
+    currentMinutes = departureMinutes;
+
+    item.isReturnArrival = isReturn;
+    item.isOvernight = isOvernight;
+
+    result.push(item);
+    previousPlace = item.place;
+  }
+
+  return result;
 }

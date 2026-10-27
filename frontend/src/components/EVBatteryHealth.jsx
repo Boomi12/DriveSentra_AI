@@ -48,7 +48,7 @@ const EVBatteryHealth = ({ healthScore, healthStatus, usagePattern, chargingNeed
 
         <div className="space-y-5">
           {/* Radial score / visual indicator */}
-          <div className="flex items-center gap-5 p-3.5 bg-slate-950/60 border border-slate-850 rounded-xl">
+          <div className="flex items-center gap-5 p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl">
             <div className="relative flex items-center justify-center h-14 w-14 rounded-full bg-slate-900 border border-slate-800 shadow-inner">
               <span className="text-sm font-black text-white font-mono">{healthScore}%</span>
             </div>
@@ -60,14 +60,14 @@ const EVBatteryHealth = ({ healthScore, healthStatus, usagePattern, chargingNeed
 
           {/* Details list */}
           <div className="space-y-2.5">
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-850/60 text-xs">
+            <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60 text-xs">
               <span className="text-slate-500 font-medium">Usage Pattern Stress</span>
               <span className={`font-bold ${usagePattern === 'Sport' ? 'text-red-400' : usagePattern === 'Normal' ? 'text-amber-400' : 'text-emerald-400'}`}>
                 {usagePattern === 'Sport' ? 'High Load (Sport)' : usagePattern === 'Normal' ? 'Moderate (Normal)' : 'Low Load (Eco)'}
               </span>
             </div>
 
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-850/60 text-xs">
+            <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60 text-xs">
               <span className="text-slate-500 font-medium">Charging Degradation</span>
               <span className={`font-bold ${chargingNeed === 'Frequent Fast Charging' ? 'text-red-400' : chargingNeed === 'Balanced' ? 'text-amber-400' : 'text-emerald-400'}`}>
                 {chargingNeed === 'Frequent Fast Charging' ? 'Fast Charging (Heavy)' : chargingNeed === 'Balanced' ? 'Balanced' : 'Slow AC (Optimal)'}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getVehicle, getTwinState } from '../services/api';
-import { Shield, ShieldAlert, Zap, Fuel, Activity, Navigation, Eye, User, Sparkles, MapPin, PhoneCall, AlertOctagon, BrainCircuit } from 'lucide-react';
+import { Shield, ShieldAlert, Zap, Fuel, Activity, Navigation, Eye, User, Sparkles, MapPin, PhoneCall, AlertOctagon, AlertTriangle, BrainCircuit } from 'lucide-react';
 import DashboardCard from '../components/DashboardCard';
 import StatusBadge from '../components/StatusBadge';
 import AlertCard from '../components/AlertCard';
@@ -39,6 +39,7 @@ const Dashboard = () => {
       }
     }
 
+    try {
       // 2. Fetch Active Twin Telemetry if tripId exists
       if (tripId) {
         const twinRes = await getTwinState(tripId);
@@ -169,7 +170,7 @@ const Dashboard = () => {
         <ShieldAlert className="h-12 w-12 text-purple-400 mb-4 animate-pulse" />
         <h3 className="text-lg font-bold text-white mb-2">Initialize Vehicle Diagnostics</h3>
         <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-          GuardianDrive AI requires basic vehicle telemetry (battery specs, fuel type, and range ratings) to compute live driver risk indices.
+          DriveSentra AI requires basic vehicle telemetry (battery specs, fuel type, and range ratings) to compute live driver risk indices.
         </p>
         <PrimaryButton onClick={() => navigate('/vehicle-setup')} className="w-auto px-6">
           Set Up Vehicle Profile
@@ -261,7 +262,7 @@ const Dashboard = () => {
               </div>
               
               {twin?.vehicleTwin && (
-                <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-slate-850 text-xs">
+                <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-slate-800 text-xs">
                   <div>
                     Trip Distance: <span className="font-bold text-white font-mono">{twin.vehicleTwin.tripDistance} km</span>
                   </div>
@@ -281,7 +282,7 @@ const Dashboard = () => {
 
             <button
               onClick={() => navigate('/itinerary')}
-              className="w-full lg:w-auto px-5 py-2.5 bg-purple-650 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95"
+              className="w-full lg:w-auto px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95"
             >
               <Navigation className="h-4 w-4" />
               View Full Itinerary Map
@@ -356,20 +357,20 @@ const Dashboard = () => {
           icon={Eye}
           iconColorClass="text-blue-400"
           headerAction={
-            <span className="text-[9px] uppercase font-bold text-slate-500 px-2 py-0.5 bg-slate-950 rounded border border-slate-850">
+            <span className="text-[9px] uppercase font-bold text-slate-500 px-2 py-0.5 bg-slate-950 rounded border border-slate-800">
               Contextual
             </span>
           }
         >
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3.5 text-xs">
-              <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
                 <span className="block text-[9px] text-slate-500 uppercase font-semibold">WEATHER STATE</span>
                 <span className="block text-white font-extrabold mt-1 capitalize">
                   {twin?.journeyTwin?.weather || 'Clear Skies'}
                 </span>
               </div>
-              <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl">
+              <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
                 <span className="block text-[9px] text-slate-500 uppercase font-semibold">TRAFFIC FLOW</span>
                 <span className="block text-white font-extrabold mt-1 capitalize">
                   {twin?.journeyTwin?.traffic || 'Normal'}
@@ -378,7 +379,7 @@ const Dashboard = () => {
             </div>
 
             {/* Smart Station Suggestions */}
-            <div className="p-3.5 bg-slate-950 border border-slate-850/80 rounded-xl relative overflow-hidden">
+            <div className="p-3.5 bg-slate-950 border border-slate-800/80 rounded-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 h-10 w-10 bg-purple-500/5 rounded-full blur-xl"></div>
               <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1">
                 <Sparkles className="h-3 w-3 text-yellow-400" />

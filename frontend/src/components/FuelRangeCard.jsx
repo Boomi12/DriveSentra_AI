@@ -19,7 +19,7 @@ const FuelRangeCard = ({ vehicleType, fuelLevel, mileage, tripDistance, estimate
 
         <div className="space-y-6">
           {/* Neon range indicator */}
-          <div className="p-4 bg-slate-950/60 border border-slate-850 rounded-xl flex items-center justify-between">
+          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center justify-between">
             <div>
               <span className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider">ESTIMATED DRIVING RANGE</span>
               <span className="inline-flex items-center gap-1.5 text-2xl font-black text-orange-400 mt-1 tracking-tight">
@@ -57,11 +57,11 @@ const FuelRangeCard = ({ vehicleType, fuelLevel, mileage, tripDistance, estimate
 
           {/* Table breakdown */}
           <div className="grid grid-cols-2 gap-3 text-xs pt-1">
-            <div className="p-2.5 bg-slate-950/40 border border-slate-850 rounded-lg">
+            <div className="p-2.5 bg-slate-950/40 border border-slate-800 rounded-lg">
               <span className="block text-[9px] text-slate-500 uppercase font-semibold">TRIP DISTANCE</span>
               <span className="block text-sm font-bold text-white mt-0.5">{tripDistance} km</span>
             </div>
-            <div className="p-2.5 bg-slate-950/40 border border-slate-850 rounded-lg">
+            <div className="p-2.5 bg-slate-950/40 border border-slate-800 rounded-lg">
               <span className="block text-[9px] text-slate-500 uppercase font-semibold">RECIRCULATING MILEAGE</span>
               <span className="block text-sm font-bold text-white mt-0.5">{mileage} km/l</span>
             </div>

@@ -201,7 +201,7 @@ const AgentPanel = () => {
                   <span>AGENT CONFIDENCE</span>
                   <span className="font-bold text-slate-300">{data.confidenceScore}%</span>
                 </div>
-                <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+                <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${agent.color}`}
                     style={{ width: `${data.confidenceScore}%` }}
@@ -215,7 +215,7 @@ const AgentPanel = () => {
 
       {/* Log Console */}
       <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl font-mono text-xs">
-        <div className="flex items-center justify-between border-b border-slate-850 pb-3 mb-4 text-slate-400">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4 text-slate-400">
           <span className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-purple-400" />
             Decision Log Console
@@ -241,7 +241,7 @@ const AgentPanel = () => {
               );
             })
           ) : (
-            <div className="text-slate-650 text-center py-4">No logged operations. Go to Digital Twin page and simulate a status change.</div>
+            <div className="text-slate-500 text-center py-4">No logged operations. Go to Digital Twin page and simulate a status change.</div>
           )}
         </div>
       </div>

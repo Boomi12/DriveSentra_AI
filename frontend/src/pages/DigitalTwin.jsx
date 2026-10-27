@@ -215,7 +215,7 @@ const DigitalTwin = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl">
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
                   <span className="block text-[10px] text-slate-500 uppercase font-semibold">ATTENTION STATUS</span>
                   <span className={`inline-flex items-center gap-1.5 text-xs font-bold mt-1 ${
                     twin.driverTwin.distractionStatus === 'focused' ? 'text-emerald-400' : 'text-red-400'
@@ -227,7 +227,7 @@ const DigitalTwin = () => {
                   </span>
                 </div>
 
-                <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl">
+                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl">
                   <span className="block text-[10px] text-slate-500 uppercase font-semibold">BREAK SUGGESTED</span>
                   <span className={`inline-flex items-center gap-1 mt-1 text-xs font-bold ${
                     twin.driverTwin.breakNeeded ? 'text-red-400' : 'text-slate-400'
@@ -281,28 +281,28 @@ const DigitalTwin = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl">
+                <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
                   <span className="block text-[9px] text-slate-500 uppercase font-semibold">ACTIVE RANGE</span>
                   <span className="inline-flex items-center gap-1 mt-1 text-xs font-black text-blue-300 font-mono">
                     {twin.vehicleTwin.range} km
                   </span>
                 </div>
 
-                <div className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl">
+                <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
                   <span className="block text-[9px] text-slate-500 uppercase font-semibold">TRIP DISTANCE</span>
                   <span className="inline-flex items-center gap-1 mt-1 text-xs font-black text-slate-200 font-mono">
                     {twin.vehicleTwin.tripDistance || 0} km
                   </span>
                 </div>
 
-                <div className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl">
+                <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
                   <span className="block text-[9px] text-slate-500 uppercase font-semibold">EST. USAGE</span>
                   <span className="inline-flex items-center gap-1 mt-1 text-xs font-black text-slate-200 font-mono">
                     {twin.vehicleTwin.estimatedUsage || 0} {twin.vehicleTwin.vehicleType === 'EV' ? '%' : 'L'}
                   </span>
                 </div>
 
-                <div className="p-2.5 bg-slate-950 border border-slate-850 rounded-xl">
+                <div className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl">
                   <span className="block text-[9px] text-slate-500 uppercase font-semibold">RANGE SAFETY</span>
                   <span className={`inline-flex items-center mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${
                     twin.vehicleTwin.fuelWarning 

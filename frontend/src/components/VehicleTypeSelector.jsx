@@ -29,7 +29,7 @@ const VehicleTypeSelector = ({ selectedType, onChange }) => {
               className={`flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all border group cursor-pointer active:scale-[0.98] ${
                 isActive
                   ? `bg-slate-950 text-white border-purple-500/40 shadow-md ${option.shadow}`
-                  : 'bg-slate-950/40 border-slate-850 text-slate-400 hover:text-white hover:bg-slate-800/40'
+                  : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/40'
               }`}
             >
               <div className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all ${

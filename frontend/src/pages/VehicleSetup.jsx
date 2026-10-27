@@ -215,7 +215,7 @@ const VehicleSetup = () => {
       <div className="bg-slate-900/60 backdrop-blur-md border border-purple-500/20 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
 
-        <div className="flex items-center gap-3.5 mb-6 border-b border-slate-850 pb-5">
+        <div className="flex items-center gap-3.5 mb-6 border-b border-slate-800/60 pb-5">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
             <Car className="h-5 w-5 text-white" />
           </div>
@@ -251,7 +251,7 @@ const VehicleSetup = () => {
                 value={formData.ownerName}
                 onChange={handleChange}
                 placeholder="Owner full name"
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-650 focus:outline-none transition-colors ${
+                className={`w-full bg-slate-950 border rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
                   errors.ownerName ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
                 }`}
               />
@@ -268,7 +268,7 @@ const VehicleSetup = () => {
                 value={formData.model}
                 onChange={handleChange}
                 placeholder="e.g. Tesla Model 3 / Hyundai Creta"
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-650 focus:outline-none transition-colors ${
+                className={`w-full bg-slate-950 border rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
                   errors.model ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
                 }`}
               />
@@ -287,7 +287,7 @@ const VehicleSetup = () => {
                 value={formData.number}
                 onChange={handleChange}
                 placeholder="e.g. KA-03-HA-1234"
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-650 focus:outline-none transition-colors ${
+                className={`w-full bg-slate-950 border rounded-xl py-2.5 px-3 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
                   errors.number ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
                 }`}
               />
@@ -312,7 +312,7 @@ const VehicleSetup = () => {
           </div>
 
           {/* Conditional parameters based on drivetrain selection */}
-          <div className="p-4 bg-slate-950 border border-slate-850 rounded-xl space-y-4">
+          <div className="p-4 bg-slate-950 border border-slate-800/80 rounded-xl space-y-4">
             <h3 className="text-xs font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-wide">
               <Sliders className="h-3.5 w-3.5 text-purple-400" />
               Engine / Battery Parameters
@@ -409,7 +409,7 @@ const VehicleSetup = () => {
                 value={formData.emergencyContact}
                 onChange={handleChange}
                 placeholder="e.g. +91 99999 99999"
-                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-650 focus:outline-none transition-colors ${
+                className={`w-full bg-slate-950 border rounded-xl py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
                   errors.emergencyContact ? 'border-red-500/50' : 'border-slate-800 focus:border-purple-500/80'
                 }`}
               />

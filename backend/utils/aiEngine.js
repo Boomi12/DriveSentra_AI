@@ -12,8 +12,12 @@ export function evaluateAgents(twinState, itinerary) {
 
   // 1. Safety Agent
   let safetyStatus = 'Optimal';
-  let safetyRec = 'Driver alert level is nominal. Safe driving habits maintained.';
+  let safetyRec = 'Driver alert level is nominal. Safe driving habits maintained across round trip.';
   let safetyConfidence = 98;
+
+  if (itinerary?.durationDays === 2 && itinerary?.overnightHalt) {
+    safetyRec = `Overnight halt at ${itinerary.overnightHalt} scheduled on Day 1 provides essential driver fatigue recovery before the Day 2 return journey.`;
+  }
 
   if (driverTwin.fatigueLevel > 70) {
     safetyStatus = 'Warning';
@@ -25,7 +29,7 @@ export function evaluateAgents(twinState, itinerary) {
     safetyConfidence = 90;
   } else if (driverTwin.breakNeeded) {
     safetyStatus = 'Caution';
-    safetyRec = 'Continuous driving exceeds 3 hours. Recommending a brief stretch break at the next toll depot.';
+    safetyRec = 'Continuous driving exceeds 3 hours. Recommending a brief stretch break at the next expressway rest stop.';
     safetyConfidence = 85;
   } else if (weatherCond === 'thunderstorm') {
     safetyStatus = 'Warning';
@@ -39,7 +43,10 @@ export function evaluateAgents(twinState, itinerary) {
 
   // 2. Route Agent
   let routeStatus = 'Optimal';
-  let routeRec = 'Active route is clear and optimal. No congestion or weather disruptions reported ahead.';
+  const routeDescription = itinerary?.source && itinerary?.destination 
+    ? `${itinerary.source} ➔ ${itinerary.destination} ➔ ${itinerary.source} (${itinerary.durationDays || 1}-Day Round Trip)`
+    : 'Active route';
+  let routeRec = `Complete round-trip corridor (${routeDescription}) is clear and optimal. Both onward and return segments monitored.`;
   let routeConfidence = 95;
 
   if (journeyTwin.traffic === 'heavy') {
@@ -58,7 +65,7 @@ export function evaluateAgents(twinState, itinerary) {
 
   // 3. Fuel/EV Agent
   let fuelStatus = 'Optimal';
-  let fuelRec = `Fuel/Battery level (${vehicleTwin.fuelOrBatteryLevel}%) is sufficient for the upcoming segment of the journey.`;
+  let fuelRec = `Fuel/Battery level (${vehicleTwin.fuelOrBatteryLevel}%) is sufficient for upcoming round-trip legs.`;
   let fuelConfidence = 94;
 
   const isEV = vehicleTwin.vehicleType.toUpperCase() === 'EV';
@@ -67,10 +74,10 @@ export function evaluateAgents(twinState, itinerary) {
     fuelStatus = 'Warning';
     if (isEV) {
       const evCharger = (destData.fuelChargingStops || []).find(s => s.type?.toUpperCase() === 'EV') || (destData.fuelChargingStops || [])[0] || { name: 'Tata Power EV Fast Charger' };
-      fuelRec = `Battery range warning! Active trip distance (${vehicleTwin.tripDistance}km) exceeds range (${vehicleTwin.range}km). Suggesting charging top-up at "${evCharger.name}".`;
+      fuelRec = `Round-trip battery range alert! Total round-trip distance (${vehicleTwin.tripDistance}km) exceeds single-charge range (${vehicleTwin.range}km). Fast charging stop planned at "${evCharger.name}".`;
     } else {
       const fuelPump = (destData.fuelChargingStops || []).find(s => s.type?.toUpperCase() === 'FUEL') || (destData.fuelChargingStops || [])[0] || { name: 'HP Refuel Station' };
-      fuelRec = `Fuel range warning! Active trip distance (${vehicleTwin.tripDistance}km) exceeds range (${vehicleTwin.range}km). Suggesting refueling stop at "${fuelPump.name}".`;
+      fuelRec = `Round-trip fuel range alert! Total round-trip distance (${vehicleTwin.tripDistance}km) exceeds tank range (${vehicleTwin.range}km). Refueling stop planned at "${fuelPump.name}".`;
     }
     fuelConfidence = 98;
   } else {
@@ -81,7 +88,7 @@ export function evaluateAgents(twinState, itinerary) {
         fuelRec = `Battery level low (${vehicleTwin.fuelOrBatteryLevel}%). Recommending fast-charging stop: "${evCharger.name}" located nearby.`;
         fuelConfidence = 97;
       } else {
-        fuelRec = `Battery level (${vehicleTwin.fuelOrBatteryLevel}%) is optimal. Est. usage: ${vehicleTwin.estimatedUsage || 0}% for ${vehicleTwin.tripDistance || 0}km trip.`;
+        fuelRec = `Battery level (${vehicleTwin.fuelOrBatteryLevel}%) is optimal for complete round trip. Est. usage: ${vehicleTwin.estimatedUsage || 0}% for ${vehicleTwin.tripDistance || 0}km.`;
       }
     } else {
       if (vehicleTwin.fuelOrBatteryLevel < 20) {
@@ -90,13 +97,12 @@ export function evaluateAgents(twinState, itinerary) {
         fuelRec = `Fuel level low (${vehicleTwin.fuelOrBatteryLevel}%). Stop at "${fuelPump.name}" in 12km.`;
         fuelConfidence = 95;
       } else {
-        fuelRec = `Fuel level (${vehicleTwin.fuelOrBatteryLevel}%) is optimal. Est. usage: ${vehicleTwin.estimatedUsage || 0}L for ${vehicleTwin.tripDistance || 0}km trip.`;
+        fuelRec = `Fuel level (${vehicleTwin.fuelOrBatteryLevel}%) is optimal for complete round trip. Est. usage: ${vehicleTwin.estimatedUsage || 0}L for ${vehicleTwin.tripDistance || 0}km.`;
       }
     }
   }
 
   // 4. Journey Agent
-  // Customizes based on destination mock data, foodPreference, and budget
   const preferredRestaurant = destData.restaurants.find(r => {
     const isBudgetMatch = budget.toLowerCase() === 'high' ? r.budget === 'High' : (budget.toLowerCase() === 'low' ? r.budget === 'Low' : r.budget !== 'High');
     const isCuisineMatch = foodPreference.toLowerCase() === 'any' || r.cuisine.toLowerCase().includes(foodPreference.toLowerCase());
@@ -107,15 +113,17 @@ export function evaluateAgents(twinState, itinerary) {
   const firstRestStop = destData.restStops[0];
 
   let journeyStatus = 'Active';
-  let journeyRec = `Recommending dynamic stops in ${destData.name}: Visit "${firstAttraction.name}" (${firstAttraction.type}) and dine at "${preferredRestaurant.name}" (${preferredRestaurant.cuisine}).`;
-  if (firstRestStop) {
-    journeyRec += ` Next rest stop suggestion: "${firstRestStop.name}".`;
+  let journeyRec = `Complete round-trip itinerary configured: Visit "${firstAttraction.name}" (${firstAttraction.type}) and dine at "${preferredRestaurant.name}" (${preferredRestaurant.cuisine}).`;
+  if (itinerary?.overnightHalt) {
+    journeyRec += ` Overnight halt confirmed at "${itinerary.overnightHalt}".`;
+  } else if (firstRestStop) {
+    journeyRec += ` Rest stop scheduled at "${firstRestStop.name}".`;
   }
-  let journeyConfidence = 88;
+  let journeyConfidence = 90;
 
   // 5. Emergency Agent
   let emergencyStatus = 'Standby';
-  let emergencyRec = 'All sensors report stable state. Emergency response protocols are in standby mode.';
+  let emergencyRec = 'All sensors report stable state. Emergency response protocols are in standby mode for onward and return journeys.';
   let emergencyConfidence = 95;
 
   if (journeyTwin.riskLevel === 'critical') {

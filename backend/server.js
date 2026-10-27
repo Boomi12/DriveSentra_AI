@@ -20,7 +20,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/guardiandrive';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/drivesentra';
 
 // Middlewares
 app.use(cors());
@@ -61,5 +61,5 @@ app.get('/api/health', (req, res) => {
 
 // Start Server
 app.listen(PORT, () => {
-  console.log(`GuardianDrive AI Backend Server is running on port ${PORT}`);
+  console.log(`DriveSentra AI Backend Server is running on port ${PORT}`);
 });
