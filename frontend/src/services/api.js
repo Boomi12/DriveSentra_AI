@@ -364,4 +364,97 @@ export const getChargingBookings = async (tripId) => {
   }
 };
 
+// Trip Planner API calls
+export const planTrip = async (tripData) => {
+  try {
+    const response = await api.post('/trip/plan', tripData);
+    return response.data;
+  } catch (error) {
+    console.error('Error planning trip:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const saveTrip = async (tripData) => {
+  try {
+    const response = await api.post('/trip/save', tripData);
+    return response.data;
+  } catch (error) {
+    console.error('Error saving trip:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const getTripHistory = async () => {
+  try {
+    const response = await api.get('/trip/history');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching trip history:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const deleteTrip = async (id) => {
+  try {
+    const response = await api.delete(`/trip/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error deleting trip with id ${id}:`, error);
+    throw error.response?.data || error.message;
+  }
+};
+
+// Driver Monitoring & Fatigue API calls
+export const saveDriverStatus = async (statusData) => {
+  try {
+    const response = await api.post('/driver/fatigue', statusData);
+    return response.data;
+  } catch (error) {
+    console.error('Error saving driver fatigue status:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const getDriverLogs = async (userId) => {
+  try {
+    const response = await api.get(`/driver/logs/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching driver fatigue logs for userId ${userId}:`, error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const getLatestDriverStatus = async (userId) => {
+  try {
+    const response = await api.get(`/driver/status/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching latest driver status for userId ${userId}:`, error);
+    throw error.response?.data || error.message;
+  }
+};
+
+// Emergency Alerts API calls
+export const sendEmergencyAlert = async (alertData) => {
+  try {
+    const response = await api.post('/emergency/alert', alertData);
+    return response.data;
+  } catch (error) {
+    console.error('Error sending emergency alert:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const getEmergencyHistory = async (userId) => {
+  try {
+    const response = await api.get(`/emergency/history/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching emergency history for userId ${userId}:`, error);
+    throw error.response?.data || error.message;
+  }
+};
+
 export default api;

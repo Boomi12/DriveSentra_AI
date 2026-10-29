@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge } from 'lucide-react';
+import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge, Navigation, Eye, ShieldAlert, History } from 'lucide-react';
 
 import JourneyCompanion from './pages/JourneyCompanion';
+import TripPlanner from './pages/TripPlanner';
 import Itinerary from './pages/Itinerary';
 import DigitalTwin from './pages/DigitalTwin';
 import AgentPanel from './pages/AgentPanel';
@@ -11,6 +12,9 @@ import Signup from './pages/Signup';
 import VehicleSetup from './pages/VehicleSetup';
 import Dashboard from './pages/Dashboard';
 import VehicleIntelligence from './pages/VehicleIntelligence';
+import DriverMonitoring from './pages/DriverMonitoring';
+import EmergencyAlerts from './pages/EmergencyAlerts';
+import DriverLogs from './pages/DriverLogs';
 
 // Import Protected Route Guard
 import ProtectedRoute from './components/ProtectedRoute';
@@ -40,6 +44,7 @@ const DashboardLayout = ({ children }) => {
     isEditingNameRef.current = isEditingName;
   }, [isEditingName]);
 
+<<<<<<< HEAD
   // Poll localStorage occasionally to show active trip status and auth state in the navbar/sidebar
   const checkState = () => {
     const tripId = localStorage.getItem('gd_tripId');
@@ -113,6 +118,15 @@ const DashboardLayout = ({ children }) => {
     // Custom interval to keep active trip ID in sync
     const interval = setInterval(checkState, 2000);
     
+=======
+    checkTrip();
+    window.addEventListener('storage', checkTrip);
+    window.addEventListener('twin-updated', checkTrip);
+
+    // Custom interval to keep active trip ID in sync
+    const interval = setInterval(checkTrip, 2000);
+
+>>>>>>> origin/shwetha-work
     return () => {
       window.removeEventListener('storage', checkState);
       window.removeEventListener('twin-updated', checkState);
@@ -150,10 +164,14 @@ const DashboardLayout = ({ children }) => {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Vehicle Setup', path: '/vehicle-setup', icon: Sliders },
     { name: 'Journey Companion', path: '/journey', icon: Compass },
+    { name: 'Trip Planner', path: '/trip-planner', icon: Navigation },
     { name: 'Itinerary Planner', path: '/itinerary', icon: Calendar },
     { name: 'Digital Twin Studio', path: '/digital-twin', icon: Activity },
     { name: 'AI Agent Panel', path: '/agents', icon: BrainCircuit },
-    { name: 'Vehicle Intelligence', path: '/vehicle-intelligence', icon: Gauge }
+    { name: 'Vehicle Intelligence', path: '/vehicle-intelligence', icon: Gauge },
+    { name: 'Driver Monitoring', path: '/driver-monitoring', icon: Eye },
+    { name: 'Emergency Alerts', path: '/emergency-alerts', icon: ShieldAlert },
+    { name: 'Driver Logs', path: '/driver-logs', icon: History }
   ];
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
@@ -168,7 +186,7 @@ const DashboardLayout = ({ children }) => {
             DRIVESENTRA AI
           </span>
         </div>
-        <button 
+        <button
           onClick={toggleMobileMenu}
           className="text-slate-400 hover:text-white transition-colors cursor-pointer"
         >
@@ -207,6 +225,7 @@ const DashboardLayout = ({ children }) => {
                   <Link
                     key={item.path}
                     to={item.path}
+<<<<<<< HEAD
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
                       isActive
                         ? 'bg-purple-600/10 text-purple-300 border border-purple-500/30 shadow-md shadow-purple-500/5'
@@ -216,6 +235,15 @@ const DashboardLayout = ({ children }) => {
                     <Icon className={`h-4 w-4 transition-colors ${
                       isActive ? 'text-purple-400' : 'text-slate-400 group-hover:text-white'
                     }`} />
+=======
+                    className={`flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all group ${isActive
+                      ? 'bg-purple-600/10 text-purple-300 border border-purple-500/30 shadow-md shadow-purple-500/5'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent'
+                      }`}
+                  >
+                    <Icon className={`h-4.5 w-4.5 transition-colors ${isActive ? 'text-purple-400' : 'text-slate-400 group-hover:text-white'
+                      }`} />
+>>>>>>> origin/shwetha-work
                     {item.name}
                   </Link>
                 );
@@ -274,7 +302,7 @@ const DashboardLayout = ({ children }) => {
         {mobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-30 flex">
             {/* Backdrop */}
-            <div 
+            <div
               className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
               onClick={toggleMobileMenu}
             ></div>
@@ -284,7 +312,7 @@ const DashboardLayout = ({ children }) => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800">
                   <span className="font-extrabold text-white text-sm tracking-wider">NAVIGATION</span>
-                  <button 
+                  <button
                     onClick={toggleMobileMenu}
                     className="text-slate-400 hover:text-white"
                   >
@@ -333,11 +361,18 @@ const DashboardLayout = ({ children }) => {
                         key={item.path}
                         to={item.path}
                         onClick={toggleMobileMenu}
+<<<<<<< HEAD
                         className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
                           isActive
                             ? 'bg-purple-600/10 text-purple-300 border border-purple-500/20'
                             : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                         }`}
+=======
+                        className={`flex items-center gap-3.5 px-4 py-3 rounded-lg text-sm font-semibold transition-all ${isActive
+                          ? 'bg-purple-600/10 text-purple-300 border border-purple-500/20'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                          }`}
+>>>>>>> origin/shwetha-work
                       >
                         <Icon className="h-4 w-4" />
                         {item.name}
@@ -392,10 +427,14 @@ const App = () => {
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/vehicle-setup" element={<ProtectedRoute><VehicleSetup /></ProtectedRoute>} />
           <Route path="/journey" element={<ProtectedRoute><ErrorBoundary><JourneyCompanion /></ErrorBoundary></ProtectedRoute>} />
+          <Route path="/trip-planner" element={<ProtectedRoute><TripPlanner /></ProtectedRoute>} />
           <Route path="/itinerary" element={<ProtectedRoute><Itinerary /></ProtectedRoute>} />
           <Route path="/digital-twin" element={<ProtectedRoute><DigitalTwin /></ProtectedRoute>} />
           <Route path="/agents" element={<ProtectedRoute><AgentPanel /></ProtectedRoute>} />
           <Route path="/vehicle-intelligence" element={<ProtectedRoute><VehicleIntelligence /></ProtectedRoute>} />
+          <Route path="/driver-monitoring" element={<ProtectedRoute><DriverMonitoring /></ProtectedRoute>} />
+          <Route path="/emergency-alerts" element={<ProtectedRoute><EmergencyAlerts /></ProtectedRoute>} />
+          <Route path="/driver-logs" element={<ProtectedRoute><DriverLogs /></ProtectedRoute>} />
 
           {/* Root Redirects */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

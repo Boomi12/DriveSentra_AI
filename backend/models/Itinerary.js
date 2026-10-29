@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createModelWrapper } from '../utils/mockDb.js';
 
 const ItinerarySchema = new mongoose.Schema({
   tripId: {
@@ -93,4 +94,5 @@ const ItinerarySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-export default mongoose.model('Itinerary', ItinerarySchema);
+const ItineraryModel = mongoose.model('Itinerary', ItinerarySchema);
+export default createModelWrapper('Itinerary', ItinerarySchema, ItineraryModel);

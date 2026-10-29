@@ -92,7 +92,7 @@ const Itinerary = () => {
           roundTripMetrics: savedMetrics ? JSON.parse(savedMetrics) : null
         });
       } else {
-        setError('Could not connect to database and no offline itinerary was found.');
+        setError('No active trip itinerary found. Please create a trip in the Trip Planner first.');
       }
     } finally {
       setLoading(false);

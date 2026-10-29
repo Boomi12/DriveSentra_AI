@@ -14,6 +14,9 @@ import mapsRouter from './routes/maps.js';
 import weatherRouter from './routes/weather.js';
 import vehicleIntelRouter from './routes/vehicleRoutes.js';
 import chargingRouter from './routes/charging.js';
+import tripRouter from './routes/trip.js';
+import driverRouter from './routes/driver.js';
+import emergencyRouter from './routes/emergency.js';
 
 // Load environment variables
 dotenv.config();
@@ -49,6 +52,9 @@ app.use('/api/vehicle', vehicleRouter);
 app.use('/api/charging', chargingRouter);
 app.use('/api/maps', mapsRouter);
 app.use('/api/weather', weatherRouter);
+app.use('/api/trip', tripRouter);
+app.use('/api/driver', driverRouter);
+app.use('/api/emergency', emergencyRouter);
 
 // Health Check API
 app.get('/api/health', (req, res) => {

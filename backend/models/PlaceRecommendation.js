@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createModelWrapper } from '../utils/mockDb.js';
 
 const PlaceRecommendationSchema = new mongoose.Schema({
   tripId: {
@@ -41,4 +42,5 @@ const PlaceRecommendationSchema = new mongoose.Schema({
   }]
 });
 
-export default mongoose.model('PlaceRecommendation', PlaceRecommendationSchema);
+const PlaceRecommendationModel = mongoose.model('PlaceRecommendation', PlaceRecommendationSchema);
+export default createModelWrapper('PlaceRecommendation', PlaceRecommendationSchema, PlaceRecommendationModel);
