@@ -9,24 +9,24 @@ const AgentPanel = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(() => !localStorage.getItem('gd_tripId') ? false : true);
 
-  const tripId = localStorage.getItem('gd_tripId');
+  const effectiveTripId = localStorage.getItem('gd_tripId') || (localStorage.getItem('gd_simulation_active') ? 'SIM_TRIP_ACTIVE' : null);
 
   const fetchAgents = useCallback(async () => {
     await Promise.resolve();
-    if (!tripId) {
+    if (!effectiveTripId) {
       setLoading(false);
       return;
     }
 
     try {
-      const res = await getAgentRecommendations(tripId);
+      const res = await getAgentRecommendations(effectiveTripId);
       if (res.success) {
         setAgents(res.data);
         
         // Append logs describing what happened
         const timestamp = new Date().toLocaleTimeString();
         const newLogs = [
-          `[${timestamp}] [SYSTEM] Telemetry synchronized for Trip ID: ${tripId}`,
+          `[${timestamp}] [SYSTEM] Telemetry synchronized for Trip ID: ${effectiveTripId}`,
           `[${timestamp}] [Safety Agent] Status: ${res.data.safetyAgent.status} | Confidence: ${res.data.safetyAgent.confidenceScore}%`,
           `[${timestamp}] [Route Agent] Status: ${res.data.routeAgent.status} | Recommendation: "${res.data.routeAgent.recommendation.substring(0, 45)}..."`,
           `[${timestamp}] [Fuel/EV Agent] Status: ${res.data.fuelEvAgent.status} | Battery/Fuel level matched.`,
@@ -59,22 +59,24 @@ const AgentPanel = () => {
     } finally {
       setLoading(false);
     }
-  }, [tripId]);
+  }, [effectiveTripId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchAgents();
     }, 0);
 
-    // Listen to digital twin updates
+    // Listen to digital twin updates and storage events
     const handleTwinUpdate = () => {
       fetchAgents();
     };
 
     window.addEventListener('twin-updated', handleTwinUpdate);
+    window.addEventListener('storage', handleTwinUpdate);
     return () => {
       clearTimeout(timer);
       window.removeEventListener('twin-updated', handleTwinUpdate);
+      window.removeEventListener('storage', handleTwinUpdate);
     };
   }, [fetchAgents]);
 

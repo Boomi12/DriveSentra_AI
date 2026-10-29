@@ -21,6 +21,14 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [sosActive, setSosActive] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
+  const [simulationActive, setSimulationActive] = useState(() => {
+    try {
+      const sim = localStorage.getItem('gd_simulation_active');
+      return sim ? JSON.parse(sim) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeTrip, setActiveTrip] = useState(() => {
     try {
       const savedForm = localStorage.getItem('gd_form');
@@ -57,8 +65,25 @@ const Dashboard = () => {
     }
 
     try {
-      // If tripId is missing but user is logged in, attempt to restore active itinerary
+      // If tripId is missing, check active simulation or active itinerary
       let effectiveTripId = tripId;
+      const simActiveStr = localStorage.getItem('gd_simulation_active');
+      if (simActiveStr) {
+        try {
+          const simInfo = JSON.parse(simActiveStr);
+          if (simInfo.isSimulation) {
+            setSimulationActive(simInfo);
+            if (!effectiveTripId) {
+              effectiveTripId = 'SIM_TRIP_ACTIVE';
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setSimulationActive(null);
+      }
+
       if (!effectiveTripId && user.id) {
         try {
           const activeRes = await getActiveItinerary(user.id);
@@ -108,14 +133,16 @@ const Dashboard = () => {
       fetchDashboardData();
     }, 0);
 
-    // Listen to twin updates from simulations
+    // Listen to twin updates from simulations and storage across tabs
     const handleTwinUpdate = () => {
       fetchDashboardData();
     };
     window.addEventListener('twin-updated', handleTwinUpdate);
+    window.addEventListener('storage', handleTwinUpdate);
     return () => {
       clearTimeout(timer);
       window.removeEventListener('twin-updated', handleTwinUpdate);
+      window.removeEventListener('storage', handleTwinUpdate);
     };
   }, [fetchDashboardData]);
 
@@ -225,6 +252,26 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Simulation Active Notice Banner */}
+      {simulationActive && (
+        <div className="p-4 bg-purple-950/40 border border-purple-500/40 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-lg shadow-purple-500/5">
+          <div className="flex items-center gap-3">
+            <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-mono font-bold text-[10px] uppercase border border-purple-500/30 shrink-0">
+              Simulation Sandbox Active
+            </span>
+            <span className="text-slate-300 leading-relaxed">
+              Active Scenario: <strong className="text-white">{simulationActive.scenarioName}</strong> ({simulationActive.simulationId}). Dashboard metrics and risk scores currently reflect simulated telemetry.
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/simulator')}
+            className="px-3.5 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+          >
+            Open Simulator &rarr;
+          </button>
+        </div>
+      )}
+
       {/* Welcoming Header Banner */}
       <div className="relative overflow-hidden bg-gradient-to-r from-slate-900/80 to-purple-950/20 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>

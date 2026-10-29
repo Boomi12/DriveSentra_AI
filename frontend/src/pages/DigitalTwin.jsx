@@ -11,17 +11,17 @@ const DigitalTwin = () => {
   const [error, setError] = useState(null);
   const [activeScenario, setActiveScenario] = useState('Clear Skies');
 
-  const tripId = localStorage.getItem('gd_tripId');
+  const effectiveTripId = localStorage.getItem('gd_tripId') || (localStorage.getItem('gd_simulation_active') ? 'SIM_TRIP_ACTIVE' : null);
 
   const fetchTwin = useCallback(async () => {
     await Promise.resolve();
-    if (!tripId) {
+    if (!effectiveTripId) {
       setLoading(false);
       return;
     }
 
     try {
-      const res = await getTwinState(tripId);
+      const res = await getTwinState(effectiveTripId);
       if (res.success) {
         setTwin(res.data);
       }
@@ -31,7 +31,7 @@ const DigitalTwin = () => {
       const savedForm = localStorage.getItem('gd_form');
       const vehicleType = savedForm ? JSON.parse(savedForm).vehicleType : 'EV';
       setTwin({
-        tripId,
+        tripId: effectiveTripId,
         driverTwin: { fatigueLevel: 15, distractionStatus: 'focused', breakNeeded: false },
         vehicleTwin: { vehicleType, fuelOrBatteryLevel: 85, range: vehicleType === 'EV' ? 340 : 580, healthStatus: 'good' },
         journeyTwin: { weather: 'clear', traffic: 'normal', riskLevel: 'low', nextStop: 'Highway Rest Area' }
@@ -39,24 +39,34 @@ const DigitalTwin = () => {
     } finally {
       setLoading(false);
     }
-  }, [tripId]);
+  }, [effectiveTripId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchTwin();
     }, 0);
-    return () => clearTimeout(timer);
+
+    const handleTwinUpdate = () => {
+      fetchTwin();
+    };
+    window.addEventListener('twin-updated', handleTwinUpdate);
+    window.addEventListener('storage', handleTwinUpdate);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('twin-updated', handleTwinUpdate);
+      window.removeEventListener('storage', handleTwinUpdate);
+    };
   }, [fetchTwin]);
 
   const handleSimulateUpdate = async (scenario) => {
-    if (!tripId) return;
+    if (!effectiveTripId) return;
     setUpdating(true);
     setError(null);
     setActiveScenario(scenario.name);
 
     try {
       const res = await updateTwinState({
-        tripId,
+        tripId: effectiveTripId,
         driverTwin: scenario.driverTwin,
         vehicleTwin: scenario.vehicleTwin,
         journeyTwin: scenario.journeyTwin

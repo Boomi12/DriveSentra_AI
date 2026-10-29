@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge, Navigation, Eye, ShieldAlert, History } from 'lucide-react';
+import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge, Navigation, Eye, ShieldAlert, History, SlidersHorizontal } from 'lucide-react';
 
 import JourneyCompanion from './pages/JourneyCompanion';
 import TripPlanner from './pages/TripPlanner';
@@ -15,6 +15,7 @@ import VehicleIntelligence from './pages/VehicleIntelligence';
 import DriverMonitoring from './pages/DriverMonitoring';
 import EmergencyAlerts from './pages/EmergencyAlerts';
 import DriverLogs from './pages/DriverLogs';
+import Simulator from './pages/Simulator';
 
 // Import Protected Route Guard
 import ProtectedRoute from './components/ProtectedRoute';
@@ -161,7 +162,8 @@ const DashboardLayout = ({ children }) => {
     { name: 'Vehicle Intelligence', path: '/vehicle-intelligence', icon: Gauge },
     { name: 'Driver Monitoring', path: '/driver-monitoring', icon: Eye },
     { name: 'Emergency Alerts', path: '/emergency-alerts', icon: ShieldAlert },
-    { name: 'Driver Logs', path: '/driver-logs', icon: History }
+    { name: 'Driver Logs', path: '/driver-logs', icon: History },
+    { name: 'Scenario Simulator', path: '/simulator', icon: SlidersHorizontal }
   ];
 
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
@@ -408,6 +410,7 @@ const App = () => {
           <Route path="/driver-monitoring" element={<ProtectedRoute><DriverMonitoring /></ProtectedRoute>} />
           <Route path="/emergency-alerts" element={<ProtectedRoute><EmergencyAlerts /></ProtectedRoute>} />
           <Route path="/driver-logs" element={<ProtectedRoute><DriverLogs /></ProtectedRoute>} />
+          <Route path="/simulator" element={<ProtectedRoute><Simulator /></ProtectedRoute>} />
 
           {/* Root Redirects */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

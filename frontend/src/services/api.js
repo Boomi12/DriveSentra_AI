@@ -457,4 +457,35 @@ export const getEmergencyHistory = async (userId) => {
   }
 };
 
+// Scenario Simulator API calls
+export const runSimulation = async (simulationData) => {
+  try {
+    const response = await api.post('/simulation/run', simulationData);
+    return response.data;
+  } catch (error) {
+    console.error('Error executing scenario simulation:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const resetSimulation = async (resetData = {}) => {
+  try {
+    const response = await api.post('/simulation/reset', resetData);
+    return response.data;
+  } catch (error) {
+    console.error('Error resetting scenario simulation:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
+export const getSimulationStatus = async () => {
+  try {
+    const response = await api.get('/simulation/status');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching simulation status:', error);
+    throw error.response?.data || error.message;
+  }
+};
+
 export default api;
