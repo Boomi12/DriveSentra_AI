@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { saveVehicle, updateVehicle, getVehicle } from '../services/api';
-import { Car, ShieldAlert, Sparkles, Sliders, ArrowRight } from 'lucide-react';
+import { Car, ShieldAlert, Sliders, ArrowRight } from 'lucide-react';
 import PrimaryButton from '../components/PrimaryButton';
 
 const VehicleSetup = () => {
@@ -23,9 +23,6 @@ const VehicleSetup = () => {
     range: 350,
     emergencyContact: ''
   });
-
-  const [errors, setErrors] = useState({});
-  const [isFormValid, setIsFormValid] = useState(false);
 
   const user = JSON.parse(localStorage.getItem('gd_user') || '{}');
 
@@ -54,7 +51,7 @@ const VehicleSetup = () => {
           setIsEditMode(true);
           localStorage.setItem('gd_vehicle', JSON.stringify(vehicle));
         }
-      } catch (err) {
+      } catch {
         // Safe to ignore if vehicle profile doesn't exist
         console.log('No existing vehicle profile, using clean setup form.');
       } finally {
@@ -65,67 +62,58 @@ const VehicleSetup = () => {
     fetchExistingVehicle();
   }, [user.id]);
 
-  // Real-time validations as the user types
-  useEffect(() => {
-    const newErrors = {};
+  // Derive real-time validations
+  const errors = {};
+  if (formData.ownerName !== undefined && formData.ownerName.trim() === '') {
+    errors.ownerName = 'Owner name is required';
+  }
 
-    if (formData.ownerName !== undefined && formData.ownerName.trim() === '') {
-      newErrors.ownerName = 'Owner name is required';
+  if (formData.model !== undefined && formData.model.trim() === '') {
+    errors.model = 'Vehicle model is required';
+  }
+
+  if (formData.number !== undefined && formData.number.trim() === '') {
+    errors.number = 'Vehicle number is required';
+  }
+
+  if (!formData.type) {
+    errors.type = 'Vehicle type is required';
+  }
+
+  if (formData.type === 'EV') {
+    const bat = Number(formData.batteryPercentage);
+    if (isNaN(bat) || bat < 0 || bat > 100) {
+      errors.batteryPercentage = 'Battery percentage must be between 0 and 100';
+    }
+  } else {
+    // Petrol/Diesel
+    const fuel = Number(formData.fuelPercentage);
+    if (isNaN(fuel) || fuel < 0 || fuel > 100) {
+      errors.fuelPercentage = 'Fuel percentage must be between 0 and 100';
     }
 
-    if (formData.model !== undefined && formData.model.trim() === '') {
-      newErrors.model = 'Vehicle model is required';
+    const mil = Number(formData.mileage);
+    if (isNaN(mil) || mil <= 0) {
+      errors.mileage = 'Mileage must be a positive number';
     }
+  }
 
-    if (formData.number !== undefined && formData.number.trim() === '') {
-      newErrors.number = 'Vehicle number is required';
-    }
+  const rng = Number(formData.range);
+  if (isNaN(rng) || rng <= 0) {
+    errors.range = 'Range must be a positive number';
+  }
 
-    if (!formData.type) {
-      newErrors.type = 'Vehicle type is required';
-    }
+  if (formData.emergencyContact !== undefined && formData.emergencyContact.trim() === '') {
+    errors.emergencyContact = 'Emergency contact is required';
+  }
 
-    if (formData.type === 'EV') {
-      const bat = Number(formData.batteryPercentage);
-      if (isNaN(bat) || bat < 0 || bat > 100) {
-        newErrors.batteryPercentage = 'Battery percentage must be between 0 and 100';
-      }
-    } else {
-      // Petrol/Diesel
-      const fuel = Number(formData.fuelPercentage);
-      if (isNaN(fuel) || fuel < 0 || fuel > 100) {
-        newErrors.fuelPercentage = 'Fuel percentage must be between 0 and 100';
-      }
-
-      const mil = Number(formData.mileage);
-      if (isNaN(mil) || mil <= 0) {
-        newErrors.mileage = 'Mileage must be a positive number';
-      }
-    }
-
-    const rng = Number(formData.range);
-    if (isNaN(rng) || rng <= 0) {
-      newErrors.range = 'Range must be a positive number';
-    }
-
-    if (formData.emergencyContact !== undefined && formData.emergencyContact.trim() === '') {
-      newErrors.emergencyContact = 'Emergency contact is required';
-    }
-
-    setErrors(newErrors);
-
-    // Form validity evaluation
-    const basicFilled = formData.ownerName.trim() && formData.model.trim() && formData.number.trim() && formData.emergencyContact.trim();
-    let typeFilled = false;
-    if (formData.type === 'EV') {
-      typeFilled = formData.batteryPercentage !== '';
-    } else {
-      typeFilled = formData.fuelPercentage !== '' && formData.mileage !== '';
-    }
-    const rangeFilled = formData.range !== '';
-
-    setIsFormValid(Object.keys(newErrors).length === 0 && basicFilled && typeFilled && rangeFilled);
-  }, [formData]);
+  // Form validity evaluation
+  const basicFilled = Boolean(formData.ownerName.trim() && formData.model.trim() && formData.number.trim() && formData.emergencyContact.trim());
+  const typeFilled = formData.type === 'EV'
+    ? formData.batteryPercentage !== ''
+    : (formData.fuelPercentage !== '' && formData.mileage !== '');
+  const rangeFilled = formData.range !== '';
+  const isFormValid = Object.keys(errors).length === 0 && basicFilled && typeFilled && rangeFilled;
 
   const handleChange = (e) => {
     const { name, value } = e.target;

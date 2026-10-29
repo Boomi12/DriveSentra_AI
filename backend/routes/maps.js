@@ -56,7 +56,7 @@ router.get('/search', async (req, res) => {
   try {
     const { query, lat, lng } = req.query;
     if (!query) {
-      return res.status(450).json({ error: 'query parameter is required' });
+      return res.status(400).json({ error: 'query parameter is required' });
     }
     const results = await searchPlaces(query, lat ? Number(lat) : undefined, lng ? Number(lng) : undefined);
     res.status(200).json({ success: true, data: results });

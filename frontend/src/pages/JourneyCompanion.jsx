@@ -1,18 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Compass, ArrowRight, Loader2, UtensilsCrossed, CalendarRange, Car, DollarSign, Plus, Trash2, Check, Search, PlusCircle, Sparkles, ShieldAlert, Info, RotateCcw, CheckCircle2, Hotel, Home, ChevronUp, ChevronDown, Pin, Clock, Minus, X, Lock } from 'lucide-react';
+import { MapPin, Compass, ArrowRight, Loader2, CalendarRange, Car, Plus, Trash2, Check, Search, PlusCircle, Sparkles, ShieldAlert, Info, RotateCcw, CheckCircle2, ChevronUp, ChevronDown, Pin, Clock, X, Lock } from 'lucide-react';
 import { 
   generateItinerary, 
   recommendPlaces, 
-  updateItineraryTimeline, 
   getItinerary, 
   getVehicle,
   getActiveItinerary,
   applyItineraryFix,
   getAutocompletePredictions,
-  getPlaceDetails,
-  getCurrentWeather,
-  validateItinerary,
   insertItineraryStop,
   removeItineraryStop,
   reorderItineraryStops,
@@ -24,151 +20,517 @@ import {
   getCurrentTimeRounded, 
   validateTripStart, 
   timeToMinutes, 
-  minutesToTime,
-  isPlaceOpen, 
   getLocalSpecs, 
-  getLocalTravelOffset, 
-  getEarliestArrival,
   isPastTimeToday,
   getLocalPlaceTimeStatus,
   calculateClientRoundTripMetrics,
   recalculateScheduleClient
 } from '../utils/timeValidation';
 
-const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
-  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0;
-  const R = 6371; // km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
+const filterRecommendationItems = (items, query = '') => {
+  if (!items || !Array.isArray(items)) return [];
+  const q = (query || '').toLowerCase().trim();
+  if (!q) return items;
+  return items.filter(item => {
+    if (!item) return false;
+    const matchName = (item.name || "").toLowerCase().includes(q);
+    const matchType = (item.type || "").toLowerCase().includes(q);
+    const matchTags = (item.tags || []).some(tag => (tag || "").toLowerCase().includes(q));
+    const matchLocation = (item.location || "").toLowerCase().includes(q);
+    const matchCuisine = (item.cuisine || "").toLowerCase().includes(q);
+    const matchDesc = (item.description || "").toLowerCase().includes(q);
+    const matchBudget = (item.budget || "").toLowerCase().includes(q);
+    return matchName || matchType || matchTags || matchLocation || matchCuisine || matchDesc || matchBudget;
+  });
+};
+
+const InspectModal = ({
+  selectedPlace,
+  onClose,
+  isPlaceInTimeline,
+  selectedTimes,
+  handleCardTimeChange,
+  timeOptions,
+  checkCardFeasibility,
+  handleAddRecommendation,
+  handleRemovePlace
+}) => {
+  if (!selectedPlace) return null;
+  const { item, type } = selectedPlace;
+  const added = isPlaceInTimeline(item.name);
+  const defaultTimes = {
+    restaurant: '01:30 PM',
+    restStop: '11:30 AM',
+    lodging: '09:00 PM',
+    attraction: '04:00 PM',
+    refuel: '10:00 AM'
+  };
+  const timeVal = selectedTimes[item.name] || defaultTimes[type] || '04:00 PM';
+  const status = getLocalPlaceTimeStatus(item.name, timeVal);
+  const specs = getLocalSpecs(item.name);
+  const feasibility = checkCardFeasibility(item);
+  const openTime = specs.open || specs.openTime || "09:00 AM";
+  const closeTime = specs.close || specs.closeTime || "06:00 PM";
+  const minDur = specs.minDuration || specs.minimumVisitDuration || 60;
+  const recDur = specs.duration || specs.recommendedVisitDuration || 90;
+
+  let availableText;
+  if (openTime === "24 hours" || !closeTime) {
+    availableText = "Open 24 hours";
+  } else {
+    const arrivalMins = timeToMinutes(timeVal);
+    const closeMins = timeToMinutes(closeTime);
+    const diff = closeMins - arrivalMins;
+    if (diff < 0) {
+      availableText = "Closed at this time";
+    } else {
+      const hrs = Math.floor(diff / 60);
+      const mins = diff % 60;
+      availableText = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/65 backdrop-blur-sm transition-opacity duration-300">
+      <div className="absolute inset-0" onClick={onClose}></div>
+      <div className="relative w-full max-w-md bg-slate-900/95 border-l border-slate-800 h-full shadow-2xl flex flex-col z-10 animate-slide-in overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500"></div>
+        <div className="p-6 border-b border-slate-800 flex items-start justify-between mt-1.5">
+          <div className="space-y-1">
+            <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border tracking-wider ${
+              type === 'attraction' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+              type === 'restaurant' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+              type === 'restStop' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+              type === 'lodging' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+              'bg-slate-500/10 text-slate-400 border-slate-500/20'
+            }`}>
+              {type === 'lodging' ? 'Lodging' : type}
+            </span>
+            <h3 className="text-xl font-bold text-white tracking-tight leading-tight">{item.name}</h3>
+            <div className="flex items-center gap-3 text-xs text-slate-400 pt-0.5">
+              {item.rating && (
+                <span className="flex items-center gap-1 font-semibold text-yellow-500">
+                  ★ {item.rating}
+                </span>
+              )}
+              {item.budget && (
+                <span>Budget: <span className="text-emerald-400 font-bold">{item.budget}</span></span>
+              )}
+              {item.pricePerNight && (
+                <span className="text-emerald-400 font-mono font-bold">{item.pricePerNight}</span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg bg-slate-800/40 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+          >
+            <span className="text-sm font-semibold px-1">✕</span>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          <div className="space-y-3">
+            {item.description && (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">About</h4>
+                <p className="text-xs text-slate-300 leading-relaxed">{item.description}</p>
+              </div>
+            )}
+            {item.location && (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</h4>
+                <p className="text-xs text-slate-300 flex items-center gap-1">
+                  📍 {item.location}
+                </p>
+              </div>
+            )}
+            {item.cuisine && (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cuisine</h4>
+                <p className="text-xs text-slate-300">{item.cuisine}</p>
+              </div>
+            )}
+            {item.facilities && item.facilities.length > 0 && (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facilities</h4>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {item.facilities.map((f, idx) => (
+                    <span key={idx} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-slate-300 text-[10px]">
+                      ✓ {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {item.tags && item.tags.length > 0 && (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tags</h4>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {item.tags.map((tag, idx) => (
+                    <span key={idx} className="px-2 py-0.5 bg-slate-950 text-slate-400 text-[9px] rounded-full border border-slate-800">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <hr className="border-slate-800" />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opening Hours</h4>
+              <p className="text-xs text-white font-semibold">
+                🕒 {openTime === "24 hours" ? "24 Hours" : `${openTime} - ${closeTime}`}
+              </p>
+            </div>
+            {item.tags && item.tags.includes("Evening") ? (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Best Time to Visit</h4>
+                <p className="text-xs text-yellow-400 font-semibold">🌅 Evening</p>
+              </div>
+            ) : item.tags && item.tags.includes("Breakfast") ? (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Best Time to Visit</h4>
+                <p className="text-xs text-orange-400 font-semibold">🍳 Morning / Breakfast</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Best Time to Visit</h4>
+                <p className="text-xs text-slate-400">Flexible hours</p>
+              </div>
+            )}
+          </div>
+
+          <hr className="border-slate-800" />
+
+          <div className="space-y-4">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Visit Duration details</h4>
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Available time at arrival:</span>
+                <span className={`font-semibold font-mono ${
+                  availableText.includes("Closed") ? "text-rose-400" : "text-white"
+                }`}>{availableText}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Minimum required visit:</span>
+                <span className="text-white font-semibold font-mono">{minDur} mins</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400">Recommended visit:</span>
+                <span className="text-white font-semibold font-mono">{recDur} mins</span>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-800" />
+
+          <div className="space-y-3">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Feasibility Status</h4>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400">Timing Status:</span>
+              {status === 'OPEN' && (
+                <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold rounded-lg flex items-center gap-1 animate-pulse">
+                  ● Open (Enough Time)
+                </span>
+              )}
+              {status === 'LIMITED' && (
+                <span className="px-2.5 py-0.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
+                  ● Limited Visit Window
+                </span>
+              )}
+              {status === 'NOT ENOUGH TIME' && (
+                <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
+                  ⚠️ Not Enough Time
+                </span>
+              )}
+              {status === 'CLOSED' && (
+                <span className="px-2.5 py-0.5 bg-red-500/10 text-red-500 border border-red-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
+                  🚫 Closed
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-slate-800 bg-slate-950/40 flex flex-col gap-3">
+          {added ? (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
+                <Check className="h-4.5 w-4.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full p-0.5" />
+                Added to your itinerary
+              </div>
+              <button
+                onClick={() => handleRemovePlace(item.name)}
+                className="px-3.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Remove Stop
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Select Arrival Time</label>
+                <select
+                  value={timeVal}
+                  onChange={(e) => handleCardTimeChange(item.name, e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-purple-500/60 cursor-pointer"
+                >
+                  {timeOptions.map((time, idx) => (
+                    <option key={idx} value={time}>{time}</option>
+                  ))}
+                </select>
+              </div>
+
+              {!feasibility.valid ? (
+                <div className="space-y-2">
+                  <button
+                    disabled
+                    className="w-full py-2.5 bg-slate-800 text-slate-500 border border-slate-700 rounded-xl text-xs font-bold cursor-not-allowed opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    Add to Itinerary
+                  </button>
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
+                    <ShieldAlert className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                    <span className="text-xs text-red-400 leading-tight font-medium">
+                      {feasibility.reason}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    handleAddRecommendation(item, type);
+                    onClose();
+                  }}
+                  className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-purple-900/20 hover:scale-[1.02] cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add to Itinerary
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RecommendationTabList = ({
+  tabKey,
+  activeTab,
+  items,
+  type,
+  emptyMessage,
+  expanded,
+  onToggleExpand,
+  selectedTimes,
+  defaultTime,
+  timeOptions,
+  onSelectPlace,
+  onCardTimeChange,
+  isPlaceInTimeline,
+  onRemovePlace,
+  checkCardFeasibility,
+  onAddPlace,
+  searchQuery
+}) => {
+  if (activeTab !== tabKey) return null;
+  const filtered = filterRecommendationItems(items || [], searchQuery);
+  const visible = expanded ? filtered : filtered.slice(0, 5);
+
+  if (visible.length === 0) {
+    return <div className="text-center py-8 text-slate-500 text-xs">{emptyMessage}</div>;
+  }
+
+  return (
+    <div className="space-y-3.5">
+      {visible.map((item, i) => {
+        const added = isPlaceInTimeline(item.name);
+        const timeVal = selectedTimes[item.name] || defaultTime;
+        const status = getLocalPlaceTimeStatus(item.name, timeVal);
+        const feasibility = checkCardFeasibility(item);
+
+        return (
+          <div
+            key={i}
+            onClick={() => onSelectPlace({ item, type })}
+            className={`p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row ${
+              type === 'refuel' ? 'justify-between items-center' : 'sm:items-center justify-between gap-4'
+            } cursor-pointer hover:bg-slate-900/40 relative group`}
+          >
+            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Info className="h-3.5 w-3.5 text-purple-400" />
+            </div>
+
+            {type === 'refuel' ? (
+              <>
+                <div>
+                  <h4 className="font-bold text-white text-sm">{item.name}</h4>
+                  <span className="text-[10px] text-slate-500">📍 {item.location}</span>
+                </div>
+                <div className="text-right">
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded border inline-block mb-1 ${
+                    item.type === 'EV' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                  }`}>
+                    {item.type}
+                  </span>
+                  <span className="text-[10px] text-emerald-400 flex items-center gap-1 justify-end font-semibold">
+                    <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                    {item.status}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-1 sm:max-w-[70%]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-bold text-white text-sm">{item.name}</h4>
+                    {type === 'attraction' && (
+                      <span className="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 text-[9px] font-semibold rounded border border-purple-500/15">{item.type}</span>
+                    )}
+                    {type === 'restaurant' && (
+                      <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-semibold rounded border border-blue-500/15">{item.cuisine}</span>
+                    )}
+                    {type === 'restStop' && (
+                      <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-semibold rounded border border-amber-500/20">{item.type || 'Highway Rest'}</span>
+                    )}
+                    {type === 'lodging' && (
+                      <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-bold rounded border border-amber-500/20">{item.type}</span>
+                    )}
+                    {status === 'OPEN' && <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">● Open</span>}
+                    {status === 'LIMITED' && <span className="text-[10px] text-yellow-500 font-semibold flex items-center gap-1">● Limited</span>}
+                    {status === 'NOT ENOUGH TIME' && <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">● Short Time</span>}
+                    {status === 'CLOSED' && <span className="text-[10px] text-rose-500 font-semibold flex items-center gap-1">● Closed</span>}
+                  </div>
+                  {item.description && <p className="text-slate-400 text-xs leading-relaxed">{item.description}</p>}
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 pt-0.5">
+                    {item.location && <span>📍 {item.location}</span>}
+                    {item.budget && <span>Budget: {item.budget}</span>}
+                    {item.pricePerNight && <span className="text-emerald-400 font-bold font-mono">{item.pricePerNight}</span>}
+                    {item.facilities && (
+                      <div className="flex flex-wrap gap-1">
+                        {item.facilities.map((f, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400 text-[9px]">
+                            ✓ {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {item.rating && <span className="text-yellow-500/90 font-semibold">★ {item.rating}</span>}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
+                  {!added && (
+                    <select
+                      value={timeVal}
+                      onChange={(e) => onCardTimeChange(item.name, e.target.value)}
+                      className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 focus:outline-none cursor-pointer"
+                    >
+                      {timeOptions.map((time, idx) => (
+                        <option key={idx} value={time}>{time}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {added ? (
+                    <button
+                      onClick={() => onRemovePlace(item.name)}
+                      className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all cursor-pointer"
+                    >
+                      <Check className="h-3 w-3" />
+                      Added
+                    </button>
+                  ) : !feasibility.valid ? (
+                    <div className="flex flex-col items-end gap-1.5">
+                      <button
+                        disabled
+                        className="px-3 py-1 bg-slate-800 text-slate-500 border border-slate-700 rounded-lg text-xs font-semibold cursor-not-allowed opacity-50"
+                      >
+                        Add
+                      </button>
+                      <span className="text-[9px] text-rose-400 font-semibold text-right max-w-[130px] leading-tight">
+                        {feasibility.reason}
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => onAddPlace(item, type)}
+                      className="px-3 py-1 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {filtered.length > 5 && (
+        <button
+          onClick={onToggleExpand}
+          className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
+        >
+          {expanded ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
+        </button>
+      )}
+    </div>
+  );
 };
 
 const JourneyCompanion = () => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('gd_user') || '{}');
   
-  const [formData, setFormData] = useState({
-    source: 'Bangalore',
-    destination: 'Mysore',
-    tripType: 'Family',
-    foodPreference: 'Any',
-    budget: 'Medium',
-    vehicleType: 'EV',
-    tripDate: getCurrentDate(),
-    startTime: getCurrentTimeRounded(),
-    fuelOrBatteryLevel: 85,
-    mileageOrRange: 340,
-    durationDays: 1,
-    tripStyle: 'Balanced',
-    interests: [],
-    sourcePlaceId: '',
-    destinationPlaceId: '',
-    tripMode: 'Round Trip'
+  const [formData, setFormData] = useState(() => {
+    const defaults = {
+      source: 'Bangalore',
+      destination: 'Mysore',
+      tripType: 'Family',
+      foodPreference: 'Any',
+      budget: 'Medium',
+      vehicleType: 'EV',
+      tripDate: getCurrentDate(),
+      startTime: getCurrentTimeRounded(),
+      fuelOrBatteryLevel: 85,
+      mileageOrRange: 340,
+      durationDays: 1,
+      tripStyle: 'Balanced',
+      interests: [],
+      sourcePlaceId: '',
+      destinationPlaceId: '',
+      tripMode: 'Round Trip'
+    };
+    try {
+      const savedForm = localStorage.getItem('gd_form');
+      if (savedForm) {
+        return { ...defaults, ...JSON.parse(savedForm) };
+      }
+    } catch {
+      // Ignore parse error
+    }
+    return defaults;
   });
 
-  const [vehicle, setVehicle] = useState(null);
-  const [vehicleLoading, setVehicleLoading] = useState(true);
-  const [formErrors, setFormErrors] = useState({});
-  const [isFormValid, setIsFormValid] = useState(true);
-
-  const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState(null);
-  const [recommendations, setRecommendations] = useState(null);
-  const [activeTab, setActiveTab] = useState('attractions');
-
-  // Autocomplete prediction states
-  const [sourceInput, setSourceInput] = useState(formData.source);
-  const [destInput, setDestInput] = useState(formData.destination);
-  const [sourcePredictions, setSourcePredictions] = useState([]);
-  const [destPredictions, setDestPredictions] = useState([]);
-  const [sourceLoading, setSourceLoading] = useState(false);
-  const [destLoading, setDestLoading] = useState(false);
-
-  // Active Trip Persistence & suggestions
-  const [activeTrip, setActiveTrip] = useState(null);
-  const [suggestedFixes, setSuggestedFixes] = useState([]);
-  const [selectedTimelineDay, setSelectedTimelineDay] = useState(1);
-  const [customDays, setCustomDays] = useState(1);
-  const [weather, setWeather] = useState(null);
-  const [infeasible, setInfeasible] = useState([]);
-  const [roundTripMetrics, setRoundTripMetrics] = useState(null);
-  const [infeasibilityDetails, setInfeasibilityDetails] = useState(null);
-
-  const fetchedUserIdRef = React.useRef(null);
-
-  // Load Active Trip on mount
-  useEffect(() => {
-    if (user.id && fetchedUserIdRef.current !== user.id) {
-      fetchedUserIdRef.current = user.id;
-      getActiveItinerary(user.id)
-        .then(res => {
-          if (res.success && res.data) {
-            setActiveTrip(res.data);
-          } else {
-            setActiveTrip(null);
-          }
-        })
-        .catch(err => {
-          // Normal empty/404 state handled silently
-          setActiveTrip(null);
-        });
-    }
-  }, [user.id]);
-
-  // Fetch Vehicle Profile
-  useEffect(() => {
-    const fetchVehicleProfile = async () => {
-      setVehicleLoading(true);
+  const [vehicle, setVehicle] = useState(() => {
+    try {
       const localVehicle = localStorage.getItem('gd_vehicle');
-      if (localVehicle) {
-        try {
-          const parsed = JSON.parse(localVehicle);
-          setVehicle(parsed);
-          setFormData(prev => ({
-            ...prev,
-            vehicleType: parsed.type,
-            fuelOrBatteryLevel: parsed.type === 'EV' ? parsed.batteryPercentage : parsed.fuelPercentage,
-            mileageOrRange: parsed.range
-          }));
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      return localVehicle ? JSON.parse(localVehicle) : null;
+    } catch {
+      return null;
+    }
+  });
 
-      if (!user.id) {
-        setVehicleLoading(false);
-        return;
-      }
-
-      try {
-        const res = await getVehicle(user.id);
-        if (res.success && res.data) {
-          setVehicle(res.data);
-          localStorage.setItem('gd_vehicle', JSON.stringify(res.data));
-          setFormData(prev => ({
-            ...prev,
-            vehicleType: res.data.type,
-            fuelOrBatteryLevel: res.data.type === 'EV' ? res.data.batteryPercentage : res.data.fuelPercentage,
-            mileageOrRange: res.data.range
-          }));
-        }
-      } catch (err) {
-        console.error('Error fetching vehicle profile from API:', err);
-      } finally {
-        setVehicleLoading(false);
-      }
-    };
-    fetchVehicleProfile();
-  }, [user.id]);
-
-  // Real-time trip validation hook
-  useEffect(() => {
+  // Real-time trip validation (derived)
+  const formErrors = (() => {
     const startCheck = validateTripStart(formData.tripDate, formData.startTime);
     const errors = {};
     if (!startCheck.valid) {
@@ -187,17 +549,124 @@ const JourneyCompanion = () => {
         errors.mileageOrRange = "Range must be between 50km and 1500km.";
       }
     }
+    return errors;
+  })();
+  const isFormValid = Object.keys(formErrors).length === 0;
 
-    setFormErrors(errors);
-    setIsFormValid(Object.keys(errors).length === 0);
-  }, [formData, vehicle]);
-  
+  const [loading, setLoading] = useState(false);
+  const [vehicleLoading, setVehicleLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [recommendations, setRecommendations] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gd_recommendations');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [activeTab, setActiveTab] = useState('attractions');
+
+  // Autocomplete prediction states
+  const [sourceInput, setSourceInput] = useState(formData.source);
+  const [destInput, setDestInput] = useState(formData.destination);
+  const [sourcePredictions, setSourcePredictions] = useState([]);
+  const [destPredictions, setDestPredictions] = useState([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [destLoading, setDestLoading] = useState(false);
+
+  // Active Trip Persistence & suggestions
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [suggestedFixes, setSuggestedFixes] = useState([]);
+  const [selectedTimelineDay, setSelectedTimelineDay] = useState(1);
+  const [customDays, setCustomDays] = useState(1);
+  const [weather, setWeather] = useState(null);
+  const [infeasible, setInfeasible] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gd_infeasible');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [roundTripMetrics, setRoundTripMetrics] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gd_roundTripMetrics');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [infeasibilityDetails, setInfeasibilityDetails] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gd_infeasibilityDetails');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Load Active Trip on mount
+  useEffect(() => {
+    if (user.id) {
+      getActiveItinerary(user.id)
+        .then(res => {
+          if (res.success && res.data) {
+            setActiveTrip(res.data);
+          } else {
+            setActiveTrip(null);
+          }
+        })
+        .catch(() => {
+          // Normal empty/404 state handled silently
+          setActiveTrip(null);
+        });
+    }
+  }, [user.id]);
+
+  // Fetch Vehicle Profile
+  useEffect(() => {
+    let active = true;
+    const fetchVehicleProfile = async () => {
+      if (!user.id) return;
+      await Promise.resolve();
+      if (!active) return;
+      setVehicleLoading(true);
+      try {
+        const res = await getVehicle(user.id);
+        if (active && res.success && res.data) {
+          setVehicle(res.data);
+          localStorage.setItem('gd_vehicle', JSON.stringify(res.data));
+          setFormData(prev => ({
+            ...prev,
+            vehicleType: res.data.type,
+            fuelOrBatteryLevel: res.data.type === 'EV' ? res.data.batteryPercentage : res.data.fuelPercentage,
+            mileageOrRange: res.data.range
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching vehicle profile from API:', err);
+      } finally {
+        if (active) setVehicleLoading(false);
+      }
+    };
+    fetchVehicleProfile();
+    return () => { active = false; };
+  }, [user.id]);
+
   // Custom interactive itinerary states
-  const [tripId, setTripId] = useState(null);
-  const [timeline, setTimeline] = useState([]);
+  const [tripId, setTripId] = useState(() => localStorage.getItem('gd_tripId') || null);
+  const [timeline, setTimeline] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gd_timeline');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
-  const requestIdRef = React.useRef(0);
+  const requestIdRef = useRef(0);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [insertModalState, setInsertModalState] = useState({ isOpen: false, index: 1 });
   const [newModalStop, setNewModalStop] = useState({
     name: '',
@@ -356,29 +825,6 @@ const JourneyCompanion = () => {
     }
   };
 
-  // Time conversion helper for chronological sorting
-  const parseTime = (timeStr, day = 1) => {
-    if (!timeStr) return 0;
-    const parts = timeStr.trim().split(' ');
-    if (parts.length < 2) return 0;
-    const [time, modifier] = parts;
-    const timeParts = time.split(':');
-    let hours = parseInt(timeParts[0], 10);
-    const minutes = timeParts.length > 1 ? parseInt(timeParts[1], 10) : 0;
-    if (modifier === 'PM' && hours < 12) hours += 12;
-    if (modifier === 'AM' && hours === 12) hours = 0;
-    
-    let rawMins = hours * 60 + minutes;
-    const dayStartMins = (day === 1) 
-      ? timeToMinutes(formData.startTime || '09:00 AM')
-      : 540; // 09:00 AM
-
-    if (rawMins < dayStartMins) {
-      rawMins += 1440; // Past midnight adjustment
-    }
-    return rawMins;
-  };
-
   // Reschedule and sort timeline sequentially
   const sortTimeline = (list) => {
     if (!list || list.length === 0) return [];
@@ -390,130 +836,50 @@ const JourneyCompanion = () => {
     });
   };
 
-  // Sync timeline with backend and local storage
-  const syncTimeline = async (newTimeline) => {
-    const currentReqId = ++requestIdRef.current;
-    setIsRecalculating(true);
-
-    const scheduled = recalculateScheduleClient(newTimeline, {
-      source: formData.source,
-      destination: formData.destination,
-      startTime: formData.startTime,
-      durationDays: formData.durationDays
-    });
-
-    setTimeline(scheduled);
-    localStorage.setItem('gd_timeline', JSON.stringify(scheduled));
-    const metrics = calculateClientRoundTripMetrics(scheduled, formData.source, formData.destination);
-    setRoundTripMetrics(metrics);
-    localStorage.setItem('gd_roundTripMetrics', JSON.stringify(metrics));
-
-    window.dispatchEvent(new CustomEvent('tripTwinUpdated', { 
-      detail: { timeline: scheduled, tripId } 
-    }));
-
-    if (tripId) {
-      setSyncing(true);
-      try {
-        const valRes = await validateItinerary(scheduled, {
-          source: formData.source,
-          destination: formData.destination,
-          startTime: formData.startTime,
-          tripDate: formData.tripDate,
-          sourceCoords: formData.sourceCoords,
-          destinationCoords: formData.destinationCoords,
-          sourcePlaceId: formData.sourcePlaceId,
-          destinationPlaceId: formData.destinationPlaceId,
-          sourceAddress: formData.sourceAddress,
-          destinationAddress: formData.destinationAddress,
-          durationDays: formData.durationDays
-        });
-
-        if (currentReqId === requestIdRef.current) {
-          if (valRes && valRes.suggestions && valRes.suggestions.length > 0) {
-            setSuggestedFixes(valRes.suggestions);
-          } else {
-            setSuggestedFixes([]);
-          }
-        }
-
-        const updateRes = await updateItineraryTimeline(tripId, scheduled);
-        if (currentReqId === requestIdRef.current && updateRes && updateRes.success && updateRes.data) {
-          if (updateRes.data.timeline) {
-            setTimeline(updateRes.data.timeline);
-            localStorage.setItem('gd_timeline', JSON.stringify(updateRes.data.timeline));
-          }
-          if (updateRes.data.roundTripMetrics) {
-            setRoundTripMetrics(updateRes.data.roundTripMetrics);
-            localStorage.setItem('gd_roundTripMetrics', JSON.stringify(updateRes.data.roundTripMetrics));
-          }
-        }
-      } catch (err) {
-        console.error('Failed to sync timeline with server, using local fallback:', err);
-      } finally {
-        if (currentReqId === requestIdRef.current) {
-          setSyncing(false);
-          setIsRecalculating(false);
-        }
-      }
-    } else {
-      setIsRecalculating(false);
-    }
-  };
-
-  // Load existing recommendations & timeline from localStorage on mount
+  // Fetch timeline from DB if not locally cached
   useEffect(() => {
-    const savedRecs = localStorage.getItem('gd_recommendations');
-    const savedForm = localStorage.getItem('gd_form');
-    const savedTripId = localStorage.getItem('gd_tripId');
-    const savedTimeline = localStorage.getItem('gd_timeline');
-    const savedInfeasible = localStorage.getItem('gd_infeasible');
-    const savedRoundTripMetrics = localStorage.getItem('gd_roundTripMetrics');
-    const savedInfeasibilityDetails = localStorage.getItem('gd_infeasibilityDetails');
+    const timer = setTimeout(() => {
+      const savedTripId = localStorage.getItem('gd_tripId');
+      const savedTimeline = localStorage.getItem('gd_timeline');
 
-    if (savedTripId) setTripId(savedTripId);
-    if (savedRecs) setRecommendations(JSON.parse(savedRecs));
-    if (savedInfeasible) setInfeasible(JSON.parse(savedInfeasible));
-    if (savedRoundTripMetrics) setRoundTripMetrics(JSON.parse(savedRoundTripMetrics));
-    if (savedInfeasibilityDetails) setInfeasibilityDetails(JSON.parse(savedInfeasibilityDetails));
-    if (savedForm) {
-      const parsedForm = JSON.parse(savedForm);
-      setFormData(parsedForm);
-      setSourceInput(parsedForm.source);
-      setDestInput(parsedForm.destination);
-    }
-    
-    if (savedTimeline) {
-      setTimeline(JSON.parse(savedTimeline));
-    } else if (savedTripId) {
-      const loadTimeline = async () => {
-        try {
-          const res = await getItinerary(savedTripId);
-          if (res.success && res.data.timeline) {
-            setTimeline(sortTimeline(res.data.timeline));
-            localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
-            if (res.data.infeasible) {
-              setInfeasible(res.data.infeasible);
-              localStorage.setItem('gd_infeasible', JSON.stringify(res.data.infeasible));
+      if (!savedTimeline && savedTripId) {
+        const loadTimeline = async () => {
+          try {
+            const res = await getItinerary(savedTripId);
+            if (res.success && res.data.timeline) {
+              const scheduled = recalculateScheduleClient(res.data.timeline, {
+                source: formData.source,
+                destination: formData.destination,
+                startTime: formData.startTime,
+                durationDays: formData.durationDays
+              });
+              setTimeline(scheduled);
+              localStorage.setItem('gd_timeline', JSON.stringify(res.data.timeline));
+              if (res.data.infeasible) {
+                setInfeasible(res.data.infeasible);
+                localStorage.setItem('gd_infeasible', JSON.stringify(res.data.infeasible));
+              }
+              if (res.data.roundTripMetrics) {
+                setRoundTripMetrics(res.data.roundTripMetrics);
+                localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
+              }
+              if (res.data.isFeasible === false && res.data.infeasibilityDetails) {
+                setInfeasibilityDetails(res.data.infeasibilityDetails);
+              }
+              if (res.data.weatherData) {
+                setWeather(res.data.weatherData);
+              }
             }
-            if (res.data.roundTripMetrics) {
-              setRoundTripMetrics(res.data.roundTripMetrics);
-              localStorage.setItem('gd_roundTripMetrics', JSON.stringify(res.data.roundTripMetrics));
-            }
-            if (res.data.isFeasible === false && res.data.infeasibilityDetails) {
-              setInfeasibilityDetails(res.data.infeasibilityDetails);
-            }
-            if (res.data.weatherData) {
-              setWeather(res.data.weatherData);
-            }
+          } catch (e) {
+            console.error(e);
           }
-        } catch (e) {
-          console.error(e);
-        }
-      };
-      loadTimeline();
-    }
-  }, []);
+        };
+        loadTimeline();
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [formData.destination, formData.durationDays, formData.source, formData.startTime]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -677,6 +1043,7 @@ const JourneyCompanion = () => {
     }));
 
     if (tripId) {
+      setSyncing(true);
       try {
         const res = await insertItineraryStop(tripId, safeIndex, stopToInsert, {
           source: formData.source,
@@ -697,6 +1064,7 @@ const JourneyCompanion = () => {
       } catch (err) {
         console.warn('Backend insert sync failed, maintained optimistic schedule:', err);
       } finally {
+        setSyncing(false);
         if (currentReqId === requestIdRef.current) {
           setIsRecalculating(false);
         }
@@ -1035,7 +1403,7 @@ const JourneyCompanion = () => {
     return timeline.some(event => (event.place || "").toLowerCase() === placeName.toLowerCase());
   };
 
-  const checkCardFeasibility = (item, type) => {
+  const checkCardFeasibility = (item) => {
     if (!item || !item.name) return { valid: false, reason: "Missing place name" };
     const specs = getLocalSpecs(item.name);
     // Dynamic engine automatically reschedules arrival and successor timings!
@@ -1052,25 +1420,6 @@ const JourneyCompanion = () => {
     }));
   };
 
-  // Filter recommendations based on search query
-  const getFilteredItems = (items) => {
-    if (!items || !Array.isArray(items)) return [];
-    const query = searchQuery.toLowerCase().trim();
-    if (!query) return items;
-    return items.filter(item => {
-      if (!item) return false;
-      const matchName = (item.name || "").toLowerCase().includes(query);
-      const matchType = (item.type || "").toLowerCase().includes(query);
-      const matchTags = (item.tags || []).some(tag => (tag || "").toLowerCase().includes(query));
-      const matchLocation = (item.location || "").toLowerCase().includes(query);
-      const matchCuisine = (item.cuisine || "").toLowerCase().includes(query);
-      const matchDesc = (item.description || "").toLowerCase().includes(query);
-      const matchBudget = (item.budget || "").toLowerCase().includes(query);
-      
-      return matchName || matchType || matchTags || matchLocation || matchCuisine || matchDesc || matchBudget;
-    });
-  };
-
   const generateTimeOptions = () => {
     const options = [];
     for (let h = 0; h < 24; h++) {
@@ -1085,6 +1434,7 @@ const JourneyCompanion = () => {
     return options;
   };
   const timeOptions = generateTimeOptions();
+  const activeMetrics = roundTripMetrics || calculateClientRoundTripMetrics(timeline, formData.source, formData.destination);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -1180,7 +1530,7 @@ const JourneyCompanion = () => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setSuggestedFixes([])}
-                className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-450 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                className="px-4 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer"
               >
                 Keep Original
               </button>
@@ -1648,7 +1998,7 @@ const JourneyCompanion = () => {
                           className={`py-1.5 px-1.5 rounded border text-[9px] font-bold transition-all cursor-pointer text-center ${
                             selected
                               ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-250'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
                           }`}
                         >
                           {interest}
@@ -1746,7 +2096,10 @@ const JourneyCompanion = () => {
                   <CalendarRange className="h-4.5 w-4.5 text-purple-400" />
                   Active Waypoints ({timeline.length})
                 </h3>
-                {syncing && <span className="text-[10px] text-purple-400 font-semibold animate-pulse">Saving changes...</span>}
+                <div className="flex items-center gap-2">
+                  {syncing && <span className="text-[10px] text-purple-400 font-semibold animate-pulse">Saving changes...</span>}
+                  {isRecalculating && <span className="text-[10px] text-amber-400 font-semibold animate-pulse">Recalculating...</span>}
+                </div>
               </div>
 
               {/* Daywise tabs inside Waypoints list */}
@@ -1773,61 +2126,56 @@ const JourneyCompanion = () => {
               )}
 
               {/* Round-Trip Journey Overview Bar */}
-              {(() => {
-                const activeMetrics = roundTripMetrics || calculateClientRoundTripMetrics(timeline, formData.source, formData.destination);
-                return (
-                  <div className="mb-3.5 p-3 bg-gradient-to-r from-purple-950/40 via-slate-900/60 to-blue-950/40 border border-purple-500/25 rounded-xl">
-                    <div className="flex items-center justify-between text-[11px] mb-2 border-b border-slate-800 pb-1.5">
-                      <span className="font-bold text-white flex items-center gap-1.5">
-                        <RotateCcw className="h-3.5 w-3.5 text-emerald-400" />
-                        Complete Round Trip
-                      </span>
-                      <span className="text-[10px] text-emerald-300 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                        {formData.source} ➔ {formData.destination} ➔ {formData.source}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[10px]">
-                      <div>
-                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Total Round-Trip Dist.</span>
-                        <span className="text-white font-mono font-bold">{activeMetrics.totalDistanceKm} km</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Total Driving Time</span>
-                        <span className="text-purple-300 font-mono font-bold">
-                          {activeMetrics.totalDrivingTime || `${Math.floor((activeMetrics.totalTravelTimeMinutes || 0) / 60)}h ${(activeMetrics.totalTravelTimeMinutes || 0) % 60}m`}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Expected Final Return</span>
-                        <span className="text-emerald-300 font-mono font-bold">
-                          Day {activeMetrics.finalReturnDay || activeMetrics.returnDay || 1} • {activeMetrics.finalReturnArrival || activeMetrics.expectedReturnTime || '10:00 PM'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Overnight Stay</span>
-                        <span className="text-slate-200 font-semibold truncate block">
-                          {activeMetrics.overnightHalt || (formData.durationDays > 1 ? `${formData.destination} Hotel` : 'None (Single-Day)')}
-                        </span>
-                      </div>
-                    </div>
+              <div className="mb-3.5 p-3 bg-gradient-to-r from-purple-950/40 via-slate-900/60 to-blue-950/40 border border-purple-500/25 rounded-xl">
+                <div className="flex items-center justify-between text-[11px] mb-2 border-b border-slate-800 pb-1.5">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <RotateCcw className="h-3.5 w-3.5 text-emerald-400" />
+                    Complete Round Trip
+                  </span>
+                  <span className="text-[10px] text-emerald-300 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    {formData.source} ➔ {formData.destination} ➔ {formData.source}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Total Round-Trip Dist.</span>
+                    <span className="text-white font-mono font-bold">{activeMetrics.totalDistanceKm} km</span>
                   </div>
-                );
-              })()}
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Total Driving Time</span>
+                    <span className="text-purple-300 font-mono font-bold">
+                      {activeMetrics.totalDrivingTime || `${Math.floor((activeMetrics.totalTravelTimeMinutes || 0) / 60)}h ${(activeMetrics.totalTravelTimeMinutes || 0) % 60}m`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Expected Final Return</span>
+                    <span className="text-emerald-300 font-mono font-bold">
+                      Day {activeMetrics.finalReturnDay || activeMetrics.returnDay || 1} • {activeMetrics.finalReturnArrival || activeMetrics.expectedReturnTime || '10:00 PM'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase tracking-wider font-semibold">Overnight Stay</span>
+                    <span className="text-slate-200 font-semibold truncate block">
+                      {activeMetrics.overnightHalt || (formData.durationDays > 1 ? `${formData.destination} Hotel` : 'None (Single-Day)')}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
               {/* Daywise stats bar */}
               <div className="grid grid-cols-3 gap-2 text-[10px] mb-3.5 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
                 <div className="text-center">
-                  <span className="text-slate-550 block text-[8px] font-bold uppercase tracking-wider">Driving Time</span>
+                  <span className="text-slate-500 block text-[8px] font-bold uppercase tracking-wider">Driving Time</span>
                   <span className="text-slate-200 font-bold font-mono">
                     {dayMins < 60 ? `${dayMins}m` : `${Math.floor(dayMins / 60)}h ${dayMins % 60}m`}
                   </span>
                 </div>
                 <div className="text-center border-x border-slate-800">
-                  <span className="text-slate-550 block text-[8px] font-bold uppercase tracking-wider">Est. Distance</span>
+                  <span className="text-slate-500 block text-[8px] font-bold uppercase tracking-wider">Est. Distance</span>
                   <span className="text-slate-200 font-bold font-mono">{dayDistance} km</span>
                 </div>
                 <div className="text-center">
-                  <span className="text-slate-550 block text-[8px] font-bold uppercase tracking-wider">{formData.vehicleType === 'EV' ? 'Battery Use' : 'Fuel Use'}</span>
+                  <span className="text-slate-500 block text-[8px] font-bold uppercase tracking-wider">{formData.vehicleType === 'EV' ? 'Battery Use' : 'Fuel Use'}</span>
                   <span className="text-slate-200 font-bold font-mono">~{energyDecrease}%</span>
                 </div>
               </div>
@@ -1854,7 +2202,7 @@ const JourneyCompanion = () => {
                   const isOvernight = event.isOvernight || event.purpose === 'Overnight Stay' || event.purpose === 'Resort Check-in';
 
                   return (
-                    <React.Fragment key={event.id || `${event.place}-${index}`}>
+                    <Fragment key={event.id || `${event.place}-${index}`}>
                       {/* Insertion divider between intermediate stops */}
                       {globalIndex > 1 && !isReturnArrival && (
                         <div className="relative flex items-center justify-center my-1 group/divider">
@@ -1884,7 +2232,7 @@ const JourneyCompanion = () => {
                       >
                         <div className="min-w-0 pr-2 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-[10px] font-bold font-mono px-1 rounded flex-shrink-0 ${
+                            <span className={`text-[10px] font-bold font-mono px-1 rounded shrink-0 ${
                               isReturnArrival 
                                 ? 'text-emerald-300 bg-emerald-500/20 border border-emerald-500/30'
                                 : isOvernight
@@ -1963,7 +2311,7 @@ const JourneyCompanion = () => {
 
                         {/* Action buttons on stop */}
                         {!isFirstStop && !isReturnArrival && (
-                          <div className="flex items-center gap-1 flex-shrink-0 pt-0.5">
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
                             {/* Pin Toggle */}
                             <button
                               type="button"
@@ -2012,7 +2360,7 @@ const JourneyCompanion = () => {
                           </div>
                         )}
                       </div>
-                    </React.Fragment>
+                    </Fragment>
                   );
                 })}
 
@@ -2048,7 +2396,7 @@ const JourneyCompanion = () => {
                     {infeasible.map((item, idx) => (
                       <div key={idx} className="p-2 bg-slate-900/50 border border-slate-800 rounded-lg">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-slate-350">{item.place}</span>
+                          <span className="text-[11px] font-bold text-slate-300">{item.place}</span>
                           <span className="text-[9px] text-amber-500/80 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">Infeasible</span>
                         </div>
                         <p className="text-[10px] text-slate-500 leading-normal mt-1">{item.reason}</p>
@@ -2144,457 +2492,110 @@ const JourneyCompanion = () => {
 
               {/* Tab Content */}
               <div className="flex-1 overflow-y-auto max-h-[350px] space-y-3.5 pr-1.5 custom-scrollbar">
-                
                 {/* ATTRACTIONS TAB */}
-                {activeTab === 'attractions' && (() => {
-                  const filtered = getFilteredItems(recommendations.attractions || []);
-                  const visible = expandedState.attractions ? filtered : filtered.slice(0, 5);
-                  return (
-                    visible.length > 0 ? (
-                      <div className="space-y-3.5">
-                        {visible.map((item, i) => {
-                          const added = isPlaceInTimeline(item.name);
-                          const timeVal = selectedTimes[item.name] || '04:00 PM';
-                          const status = getLocalPlaceTimeStatus(item.name, timeVal);
-                          return (
-                            <div 
-                              key={i} 
-                              onClick={() => setSelectedPlace({ item, type: 'attraction' })}
-                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
-                            >
-                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Info className="h-3.5 w-3.5 text-purple-400" />
-                              </div>
-                              <div className="space-y-1 sm:max-w-[70%]">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                                  <span className="px-1.5 py-0.5 bg-purple-500/10 text-purple-400 text-[9px] font-semibold rounded border border-purple-500/15">{item.type}</span>
-                                  {status === 'OPEN' && <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">● Open</span>}
-                                  {status === 'LIMITED' && <span className="text-[10px] text-yellow-500 font-semibold flex items-center gap-1">● Limited</span>}
-                                  {status === 'NOT ENOUGH TIME' && <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">● Short Time</span>}
-                                  {status === 'CLOSED' && <span className="text-[10px] text-rose-500 font-semibold flex items-center gap-1">● Closed</span>}
-                                </div>
-                                <p className="text-slate-400 text-xs leading-relaxed">{item.description}</p>
-                                <div className="flex items-center gap-3 text-[10px] text-slate-500 pt-1">
-                                  <span>📍 {item.location}</span>
-                                  <span className="text-yellow-500/90 font-semibold">★ {item.rating}</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
-                                {!added && (
-                                  <select
-                                    value={timeVal}
-                                    onChange={(e) => handleCardTimeChange(item.name, e.target.value)}
-                                    className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 focus:outline-none cursor-pointer"
-                                  >
-                                    {timeOptions.map((time, idx) => (
-                                      <option key={idx} value={time}>{time}</option>
-                                    ))}
-                                  </select>
-                                )}
-
-                                {added ? (
-                                  <button
-                                    onClick={() => handleRemovePlace(item.name)}
-                                    className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all cursor-pointer"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                    Added
-                                  </button>
-                                ) : (() => {
-                                  const feasibility = checkCardFeasibility(item, 'attraction');
-                                  return !feasibility.valid ? (
-                                    <div className="flex flex-col items-end gap-1.5">
-                                      <button
-                                        disabled
-                                        className="px-3 py-1 bg-slate-800 text-slate-500 border border-slate-700 rounded-lg text-xs font-semibold cursor-not-allowed opacity-50"
-                                      >
-                                        Add
-                                      </button>
-                                      <span className="text-[9px] text-rose-400 font-semibold text-right max-w-[130px] leading-tight">
-                                        {feasibility.reason}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleAddRecommendation(item, 'attraction')}
-                                      className="px-3 py-1 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                      Add
-                                    </button>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {filtered.length > 5 && (
-                          <button
-                            onClick={() => setExpandedState(prev => ({ ...prev, attractions: !prev.attractions }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
-                          >
-                            {expandedState.attractions ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-slate-500 text-xs">No matching attractions found.</div>
-                    )
-                  );
-                })()}
+                <RecommendationTabList
+                  tabKey="attractions"
+                  activeTab={activeTab}
+                  items={recommendations.attractions}
+                  type="attraction"
+                  emptyMessage="No matching attractions found."
+                  expanded={expandedState.attractions}
+                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, attractions: !prev.attractions }))}
+                  selectedTimes={selectedTimes}
+                  defaultTime="04:00 PM"
+                  timeOptions={timeOptions}
+                  onSelectPlace={setSelectedPlace}
+                  onCardTimeChange={handleCardTimeChange}
+                  isPlaceInTimeline={isPlaceInTimeline}
+                  onRemovePlace={handleRemovePlace}
+                  checkCardFeasibility={checkCardFeasibility}
+                  onAddPlace={handleAddRecommendation}
+                  searchQuery={searchQuery}
+                />
 
                 {/* RESTAURANTS TAB */}
-                {activeTab === 'restaurants' && (() => {
-                  const filtered = getFilteredItems(recommendations.restaurants || []);
-                  const visible = expandedState.restaurants ? filtered : filtered.slice(0, 5);
-                  return (
-                    visible.length > 0 ? (
-                      <div className="space-y-3.5">
-                        {visible.map((item, i) => {
-                          const added = isPlaceInTimeline(item.name);
-                          const timeVal = selectedTimes[item.name] || '01:30 PM';
-                          const status = getLocalPlaceTimeStatus(item.name, timeVal);
-                          return (
-                            <div 
-                              key={i} 
-                              onClick={() => setSelectedPlace({ item, type: 'restaurant' })}
-                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
-                            >
-                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Info className="h-3.5 w-3.5 text-purple-400" />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                                  <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 text-[9px] font-semibold rounded border border-blue-500/15">{item.cuisine}</span>
-                                  {status === 'OPEN' && <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">● Open</span>}
-                                  {status === 'LIMITED' && <span className="text-[10px] text-yellow-500 font-semibold flex items-center gap-1">● Limited</span>}
-                                  {status === 'NOT ENOUGH TIME' && <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">● Short Time</span>}
-                                  {status === 'CLOSED' && <span className="text-[10px] text-rose-500 font-semibold flex items-center gap-1">● Closed</span>}
-                                </div>
-                                <p className="text-slate-400 text-xs leading-relaxed">{item.description}</p>
-                                <div className="flex items-center gap-3 text-[10px] text-slate-500 pt-1">
-                                  <span>📍 {item.location}</span>
-                                  <span>Budget: {item.budget}</span>
-                                  <span className="text-yellow-500/90 font-semibold">★ {item.rating}</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
-                                {!added && (
-                                  <select
-                                    value={timeVal}
-                                    onChange={(e) => handleCardTimeChange(item.name, e.target.value)}
-                                    className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 focus:outline-none cursor-pointer"
-                                  >
-                                    {timeOptions.map((time, idx) => (
-                                      <option key={idx} value={time}>{time}</option>
-                                    ))}
-                                  </select>
-                                )}
-
-                                {added ? (
-                                  <button
-                                    onClick={() => handleRemovePlace(item.name)}
-                                    className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all cursor-pointer"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                    Added
-                                  </button>
-                                ) : (() => {
-                                  const feasibility = checkCardFeasibility(item, 'restaurant');
-                                  return !feasibility.valid ? (
-                                    <div className="flex flex-col items-end gap-1.5">
-                                      <button
-                                        disabled
-                                        className="px-3 py-1 bg-slate-800 text-slate-500 border border-slate-700 rounded-lg text-xs font-semibold cursor-not-allowed opacity-50"
-                                      >
-                                        Add
-                                      </button>
-                                      <span className="text-[9px] text-rose-400 font-semibold text-right max-w-[130px] leading-tight">
-                                        {feasibility.reason}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleAddRecommendation(item, 'restaurant')}
-                                      className="px-3 py-1 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                      Add
-                                    </button>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {filtered.length > 5 && (
-                          <button
-                            onClick={() => setExpandedState(prev => ({ ...prev, restaurants: !prev.restaurants }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
-                          >
-                            {expandedState.restaurants ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-slate-500 text-xs">No matching restaurants found.</div>
-                    )
-                  );
-                })()}
+                <RecommendationTabList
+                  tabKey="restaurants"
+                  activeTab={activeTab}
+                  items={recommendations.restaurants}
+                  type="restaurant"
+                  emptyMessage="No matching restaurants found."
+                  expanded={expandedState.restaurants}
+                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, restaurants: !prev.restaurants }))}
+                  selectedTimes={selectedTimes}
+                  defaultTime="01:30 PM"
+                  timeOptions={timeOptions}
+                  onSelectPlace={setSelectedPlace}
+                  onCardTimeChange={handleCardTimeChange}
+                  isPlaceInTimeline={isPlaceInTimeline}
+                  onRemovePlace={handleRemovePlace}
+                  checkCardFeasibility={checkCardFeasibility}
+                  onAddPlace={handleAddRecommendation}
+                  searchQuery={searchQuery}
+                />
 
                 {/* REST STOPS TAB */}
-                {activeTab === 'restStops' && (() => {
-                  const filtered = getFilteredItems(recommendations.restStops || []);
-                  const visible = expandedState.restStops ? filtered : filtered.slice(0, 5);
-                  return (
-                    visible.length > 0 ? (
-                      <div className="space-y-3.5">
-                        {visible.map((item, i) => {
-                          const added = isPlaceInTimeline(item.name);
-                          const timeVal = selectedTimes[item.name] || '11:30 AM';
-                          const status = getLocalPlaceTimeStatus(item.name, timeVal);
-                          return (
-                            <div 
-                              key={i} 
-                              onClick={() => setSelectedPlace({ item, type: 'restStop' })}
-                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
-                            >
-                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Info className="h-3.5 w-3.5 text-purple-400" />
-                              </div>
-                              <div className="space-y-1.5 sm:max-w-[70%]">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                                  <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] rounded border border-emerald-500/15 font-semibold">{item.type}</span>
-                                  {status === 'OPEN' && <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">● Open</span>}
-                                  {status === 'LIMITED' && <span className="text-[10px] text-yellow-500 font-semibold flex items-center gap-1">● Limited</span>}
-                                  {status === 'NOT ENOUGH TIME' && <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">● Short Time</span>}
-                                  {status === 'CLOSED' && <span className="text-[10px] text-rose-500 font-semibold flex items-center gap-1">● Closed</span>}
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {item.facilities?.map((f, idx) => (
-                                    <span key={idx} className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400 text-[9px]">
-                                      ✓ {f}
-                                    </span>
-                                  ))}
-                                </div>
-                                <span className="text-[10px] text-slate-500">📍 {item.location}</span>
-                              </div>
-
-                              <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
-                                {!added && (
-                                  <select
-                                    value={timeVal}
-                                    onChange={(e) => handleCardTimeChange(item.name, e.target.value)}
-                                    className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 focus:outline-none cursor-pointer"
-                                  >
-                                    {timeOptions.map((time, idx) => (
-                                      <option key={idx} value={time}>{time}</option>
-                                    ))}
-                                  </select>
-                                )}
-
-                                {added ? (
-                                  <button
-                                    onClick={() => handleRemovePlace(item.name)}
-                                    className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all cursor-pointer"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                    Added
-                                  </button>
-                                ) : (() => {
-                                  const feasibility = checkCardFeasibility(item, 'restStop');
-                                  return !feasibility.valid ? (
-                                    <div className="flex flex-col items-end gap-1.5">
-                                      <button
-                                        disabled
-                                        className="px-3 py-1 bg-slate-800 text-slate-500 border border-slate-700 rounded-lg text-xs font-semibold cursor-not-allowed opacity-50"
-                                      >
-                                        Add
-                                      </button>
-                                      <span className="text-[9px] text-rose-400 font-semibold text-right max-w-[130px] leading-tight">
-                                        {feasibility.reason}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleAddRecommendation(item, 'restStop')}
-                                      className="px-3 py-1 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                      Add
-                                    </button>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {filtered.length > 5 && (
-                          <button
-                            onClick={() => setExpandedState(prev => ({ ...prev, restStops: !prev.restStops }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
-                          >
-                            {expandedState.restStops ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-slate-500 text-xs">No matching rest stops found.</div>
-                    )
-                  );
-                })()}
+                <RecommendationTabList
+                  tabKey="restStops"
+                  activeTab={activeTab}
+                  items={recommendations.restStops}
+                  type="restStop"
+                  emptyMessage="No matching rest stops found."
+                  expanded={expandedState.restStops}
+                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, restStops: !prev.restStops }))}
+                  selectedTimes={selectedTimes}
+                  defaultTime="11:30 AM"
+                  timeOptions={timeOptions}
+                  onSelectPlace={setSelectedPlace}
+                  onCardTimeChange={handleCardTimeChange}
+                  isPlaceInTimeline={isPlaceInTimeline}
+                  onRemovePlace={handleRemovePlace}
+                  checkCardFeasibility={checkCardFeasibility}
+                  onAddPlace={handleAddRecommendation}
+                  searchQuery={searchQuery}
+                />
 
                 {/* LODGING TAB */}
-                {activeTab === 'lodging' && (() => {
-                  const filtered = getFilteredItems(recommendations.haltingPlaces || []);
-                  const visible = expandedState.lodging ? filtered : filtered.slice(0, 5);
-                  return (
-                    visible.length > 0 ? (
-                      <div className="space-y-3.5">
-                        {visible.map((item, i) => {
-                          const added = isPlaceInTimeline(item.name);
-                          const timeVal = selectedTimes[item.name] || '09:00 PM';
-                          const status = getLocalPlaceTimeStatus(item.name, timeVal);
-                          return (
-                            <div 
-                              key={i} 
-                              onClick={() => setSelectedPlace({ item, type: 'lodging' })}
-                              className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-slate-900/40 relative group"
-                            >
-                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Info className="h-3.5 w-3.5 text-purple-400" />
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                                  <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 text-[9px] font-bold rounded border border-amber-500/20">{item.type}</span>
-                                  {status === 'OPEN' && <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">● Open</span>}
-                                  {status === 'LIMITED' && <span className="text-[10px] text-yellow-500 font-semibold flex items-center gap-1">● Limited</span>}
-                                  {status === 'NOT ENOUGH TIME' && <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1">● Short Time</span>}
-                                  {status === 'CLOSED' && <span className="text-[10px] text-rose-500 font-semibold flex items-center gap-1">● Closed</span>}
-                                </div>
-                                <div className="flex items-center gap-3 text-[10px] text-slate-500 pt-0.5">
-                                  <span className="text-yellow-500/90 font-semibold">★ {item.rating}</span>
-                                  <span className="text-emerald-400 font-bold font-mono">{item.pricePerNight}</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2 self-end sm:self-auto" onClick={(e) => e.stopPropagation()}>
-                                {!added && (
-                                  <select
-                                    value={timeVal}
-                                    onChange={(e) => handleCardTimeChange(item.name, e.target.value)}
-                                    className="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-slate-300 focus:outline-none cursor-pointer"
-                                  >
-                                    {timeOptions.map((time, idx) => (
-                                      <option key={idx} value={time}>{time}</option>
-                                    ))}
-                                  </select>
-                                )}
-
-                                {added ? (
-                                  <button
-                                    onClick={() => handleRemovePlace(item.name)}
-                                    className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all cursor-pointer"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                    Added
-                                  </button>
-                                ) : (() => {
-                                  const feasibility = checkCardFeasibility(item, 'lodging');
-                                  return !feasibility.valid ? (
-                                    <div className="flex flex-col items-end gap-1.5">
-                                      <button
-                                        disabled
-                                        className="px-3 py-1 bg-slate-800 text-slate-500 border border-slate-700 rounded-lg text-xs font-semibold cursor-not-allowed opacity-50"
-                                      >
-                                        Add
-                                      </button>
-                                      <span className="text-[9px] text-rose-400 font-semibold text-right max-w-[130px] leading-tight">
-                                        {feasibility.reason}
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleAddRecommendation(item, 'lodging')}
-                                      className="px-3 py-1 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 border border-purple-500/20 hover:border-purple-500/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-                                    >
-                                      <Plus className="h-3 w-3" />
-                                      Add
-                                    </button>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {filtered.length > 5 && (
-                          <button
-                            onClick={() => setExpandedState(prev => ({ ...prev, lodging: !prev.lodging }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
-                          >
-                            {expandedState.lodging ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-slate-500 text-xs">No matching lodging options found.</div>
-                    )
-                  );
-                })()}
+                <RecommendationTabList
+                  tabKey="lodging"
+                  activeTab={activeTab}
+                  items={recommendations.haltingPlaces}
+                  type="lodging"
+                  emptyMessage="No matching lodging options found."
+                  expanded={expandedState.lodging}
+                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, lodging: !prev.lodging }))}
+                  selectedTimes={selectedTimes}
+                  defaultTime="09:00 PM"
+                  timeOptions={timeOptions}
+                  onSelectPlace={setSelectedPlace}
+                  onCardTimeChange={handleCardTimeChange}
+                  isPlaceInTimeline={isPlaceInTimeline}
+                  onRemovePlace={handleRemovePlace}
+                  checkCardFeasibility={checkCardFeasibility}
+                  onAddPlace={handleAddRecommendation}
+                  searchQuery={searchQuery}
+                />
 
                 {/* REFUEL TAB */}
-                {activeTab === 'refuel' && (() => {
-                  const filtered = getFilteredItems(recommendations.fuelChargingStops || []);
-                  const visible = expandedState.refuel ? filtered : filtered.slice(0, 5);
-                  return (
-                    visible.length > 0 ? (
-                      <div className="space-y-3.5">
-                        {visible.map((item, i) => (
-                          <div 
-                            key={i} 
-                            onClick={() => setSelectedPlace({ item, type: 'refuel' })}
-                            className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all flex justify-between items-center cursor-pointer hover:bg-slate-900/40 relative group"
-                          >
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Info className="h-3.5 w-3.5 text-purple-400" />
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-white text-sm">{item.name}</h4>
-                              <span className="text-[10px] text-slate-500">📍 {item.location}</span>
-                            </div>
-                            <div className="text-right">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded border inline-block mb-1 ${
-                                item.type === 'EV' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'
-                              }`}>
-                                {item.type}
-                              </span>
-                              <span className="text-[10px] text-emerald-400 flex items-center gap-1 justify-end font-semibold">
-                                <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
-                                {item.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        {filtered.length > 5 && (
-                          <button
-                            onClick={() => setExpandedState(prev => ({ ...prev, refuel: !prev.refuel }))}
-                            className="mt-2 text-purple-400 hover:text-purple-300 text-xs font-bold transition-all cursor-pointer text-center w-full py-2 bg-slate-950/30 border border-slate-800 rounded-lg hover:bg-slate-900/50"
-                          >
-                            {expandedState.refuel ? 'Show Less' : `Show More (${filtered.length - 5} more)`}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-slate-500 text-xs">No matching stations found.</div>
-                    )
-                  );
-                })()}
+                <RecommendationTabList
+                  tabKey="refuel"
+                  activeTab={activeTab}
+                  items={recommendations.fuelChargingStops}
+                  type="refuel"
+                  emptyMessage="No matching stations found."
+                  expanded={expandedState.refuel}
+                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, refuel: !prev.refuel }))}
+                  selectedTimes={selectedTimes}
+                  defaultTime="10:00 AM"
+                  timeOptions={timeOptions}
+                  onSelectPlace={setSelectedPlace}
+                  onCardTimeChange={handleCardTimeChange}
+                  isPlaceInTimeline={isPlaceInTimeline}
+                  onRemovePlace={handleRemovePlace}
+                  checkCardFeasibility={checkCardFeasibility}
+                  onAddPlace={handleAddRecommendation}
+                  searchQuery={searchQuery}
+                />
 
                 {/* CUSTOM ADD FORM TAB */}
                 {activeTab === 'custom' && (
@@ -2774,7 +2775,7 @@ const JourneyCompanion = () => {
                       className="p-3 bg-slate-950/60 border border-slate-800 hover:border-purple-500/40 rounded-xl flex items-center justify-between gap-3 transition-all"
                     >
                       <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                         <span>{alt}</span>
                       </div>
                       <button
@@ -2813,288 +2814,17 @@ const JourneyCompanion = () => {
       </div>
 
       {/* Google Maps-style Side Panel / Inspect Modal */}
-      {selectedPlace && (() => {
-        const { item, type } = selectedPlace;
-        const added = isPlaceInTimeline(item.name);
-        const defaultTimes = {
-          restaurant: '01:30 PM',
-          restStop: '11:30 AM',
-          lodging: '09:00 PM',
-          attraction: '04:00 PM',
-          refuel: '10:00 AM'
-        };
-        const timeVal = selectedTimes[item.name] || defaultTimes[type] || '04:00 PM';
-        const status = getLocalPlaceTimeStatus(item.name, timeVal);
-        const specs = getLocalSpecs(item.name);
-        const feasibility = checkCardFeasibility(item, type);
-        const openTime = specs.open || specs.openTime || "09:00 AM";
-        const closeTime = specs.close || specs.closeTime || "06:00 PM";
-        const minDur = specs.minDuration || specs.minimumVisitDuration || 60;
-        const recDur = specs.duration || specs.recommendedVisitDuration || 90;
-
-        // Calculate available time
-        let availableText = "N/A";
-        if (openTime === "24 hours" || !closeTime) {
-          availableText = "Open 24 hours";
-        } else {
-          const arrivalMins = timeToMinutes(timeVal);
-          const closeMins = timeToMinutes(closeTime);
-          const diff = closeMins - arrivalMins;
-          if (diff < 0) {
-            availableText = "Closed at this time";
-          } else {
-            const hrs = Math.floor(diff / 60);
-            const mins = diff % 60;
-            availableText = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-          }
-        }
-
-        return (
-          <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/65 backdrop-blur-sm transition-opacity duration-300">
-            {/* Click outside to close */}
-            <div className="absolute inset-0" onClick={() => setSelectedPlace(null)}></div>
-            
-            {/* Panel */}
-            <div className="relative w-full max-w-md bg-slate-900/95 border-l border-slate-800 h-full shadow-2xl flex flex-col z-10 animate-slide-in overflow-hidden">
-              {/* Decorative top gradient */}
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500"></div>
-              
-              {/* Header */}
-              <div className="p-6 border-b border-slate-800 flex items-start justify-between mt-1.5">
-                <div className="space-y-1">
-                  <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded border tracking-wider ${
-                    type === 'attraction' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                    type === 'restaurant' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                    type === 'restStop' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                    type === 'lodging' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                  }`}>
-                    {type === 'lodging' ? 'Lodging' : type}
-                  </span>
-                  <h3 className="text-xl font-bold text-white tracking-tight leading-tight">{item.name}</h3>
-                  <div className="flex items-center gap-3 text-xs text-slate-400 pt-0.5">
-                    {item.rating && (
-                      <span className="flex items-center gap-1 font-semibold text-yellow-500">
-                        ★ {item.rating}
-                      </span>
-                    )}
-                    {item.budget && (
-                      <span>Budget: <span className="text-emerald-400 font-bold">{item.budget}</span></span>
-                    )}
-                    {item.pricePerNight && (
-                      <span className="text-emerald-400 font-mono font-bold">{item.pricePerNight}</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedPlace(null)}
-                  className="p-1.5 rounded-lg bg-slate-800/40 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-                >
-                  <span className="text-sm font-semibold px-1">✕</span>
-                </button>
-              </div>
-
-              {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                {/* Description & Location */}
-                <div className="space-y-3">
-                  {item.description && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">About</h4>
-                      <p className="text-xs text-slate-300 leading-relaxed">{item.description}</p>
-                    </div>
-                  )}
-                  {item.location && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</h4>
-                      <p className="text-xs text-slate-300 flex items-center gap-1">
-                        📍 {item.location}
-                      </p>
-                    </div>
-                  )}
-                  {item.cuisine && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cuisine</h4>
-                      <p className="text-xs text-slate-300">{item.cuisine}</p>
-                    </div>
-                  )}
-                  {item.facilities && item.facilities.length > 0 && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Facilities</h4>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {item.facilities.map((f, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-slate-950 border border-slate-800 rounded text-slate-300 text-[10px]">
-                            ✓ {f}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {item.tags && item.tags.length > 0 && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tags</h4>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {item.tags.map((tag, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-slate-950 text-slate-400 text-[9px] rounded-full border border-slate-800">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <hr className="border-slate-800" />
-
-                {/* Opening Hours & Best time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Opening Hours</h4>
-                    <p className="text-xs text-white font-semibold">
-                      🕒 {openTime === "24 hours" ? "24 Hours" : `${openTime} - ${closeTime}`}
-                    </p>
-                  </div>
-                  {item.tags && item.tags.includes("Evening") ? (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Best Time to Visit</h4>
-                      <p className="text-xs text-yellow-400 font-semibold">🌅 Evening</p>
-                    </div>
-                  ) : item.tags && item.tags.includes("Breakfast") ? (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Best Time to Visit</h4>
-                      <p className="text-xs text-orange-400 font-semibold">🍳 Morning / Breakfast</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Best Time to Visit</h4>
-                      <p className="text-xs text-slate-400">Flexible hours</p>
-                    </div>
-                  )}
-                </div>
-
-                <hr className="border-slate-800" />
-
-                {/* Visit Window Details */}
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Visit Duration details</h4>
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400">Available time at arrival:</span>
-                      <span className={`font-semibold font-mono ${
-                        availableText.includes("Closed") ? "text-rose-400" : "text-white"
-                      }`}>{availableText}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400">Minimum required visit:</span>
-                      <span className="text-white font-semibold font-mono">{minDur} mins</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400">Recommended visit:</span>
-                      <span className="text-white font-semibold font-mono">{recDur} mins</span>
-                    </div>
-                  </div>
-                </div>
-
-                <hr className="border-slate-800" />
-
-                {/* Feasibility Status Check */}
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Feasibility Status</h4>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">Timing Status:</span>
-                    {status === 'OPEN' && (
-                      <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold rounded-lg flex items-center gap-1 animate-pulse">
-                        ● Open (Enough Time)
-                      </span>
-                    )}
-                    {status === 'LIMITED' && (
-                      <span className="px-2.5 py-0.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
-                        ● Limited Visit Window
-                      </span>
-                    )}
-                    {status === 'NOT ENOUGH TIME' && (
-                      <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
-                        ⚠️ Not Enough Time
-                      </span>
-                    )}
-                    {status === 'CLOSED' && (
-                      <span className="px-2.5 py-0.5 bg-red-500/10 text-red-500 border border-red-500/20 text-xs font-bold rounded-lg flex items-center gap-1">
-                        🚫 Closed
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action footer */}
-              <div className="p-6 border-t border-slate-800 bg-slate-950/40 flex flex-col gap-3">
-                {added ? (
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-                      <Check className="h-4.5 w-4.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full p-0.5" />
-                      Added to your itinerary
-                    </div>
-                    <button
-                      onClick={() => {
-                        handleRemovePlace(item.name);
-                        // don't close modal, just update
-                      }}
-                      className="px-3.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    >
-                      Remove Stop
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    {/* Time Select */}
-                    <div className="flex items-center justify-between gap-4">
-                      <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Select Arrival Time</label>
-                      <select
-                        value={timeVal}
-                        onChange={(e) => handleCardTimeChange(item.name, e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-purple-500/60 cursor-pointer"
-                      >
-                        {timeOptions.map((time, idx) => (
-                          <option key={idx} value={time}>{time}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Add Button */}
-                    {!feasibility.valid ? (
-                      <div className="space-y-2">
-                        <button
-                          disabled
-                          className="w-full py-2.5 bg-slate-800 text-slate-500 border border-slate-700 rounded-xl text-xs font-bold cursor-not-allowed opacity-50 flex items-center justify-center gap-1.5"
-                        >
-                          Add to Itinerary
-                        </button>
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
-                          <ShieldAlert className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
-                          <span className="text-xs text-red-400 leading-tight font-medium">
-                            {feasibility.reason}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          handleAddRecommendation(item, type);
-                          setSelectedPlace(null); // close panel after add
-                        }}
-                        className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-purple-900/20 hover:scale-[1.02] cursor-pointer"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add to Itinerary
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      <InspectModal
+        selectedPlace={selectedPlace}
+        onClose={() => setSelectedPlace(null)}
+        isPlaceInTimeline={isPlaceInTimeline}
+        selectedTimes={selectedTimes}
+        handleCardTimeChange={handleCardTimeChange}
+        timeOptions={timeOptions}
+        checkCardFeasibility={checkCardFeasibility}
+        handleAddRecommendation={handleAddRecommendation}
+        handleRemovePlace={handleRemovePlace}
+      />
     </div>
   );
 };

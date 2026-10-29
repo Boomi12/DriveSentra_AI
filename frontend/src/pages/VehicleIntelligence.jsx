@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, Car, Compass, HelpCircle, CheckCircle2, RotateCcw, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Car, RotateCcw, AlertTriangle } from 'lucide-react';
 import VehicleTypeSelector from '../components/VehicleTypeSelector';
 import EVBatteryHealth from '../components/EVBatteryHealth';
 import FuelRangeCard from '../components/FuelRangeCard';
@@ -23,7 +23,7 @@ import {
 
 const VehicleIntelligence = () => {
   const [vehicleType, setVehicleType] = useState('EV');
-  const [tripId, setTripId] = useState('');
+  const [tripId] = useState(() => localStorage.getItem('gd_tripId') || '');
 
   // Form states
   const [evInputs, setEvInputs] = useState({
@@ -41,10 +41,6 @@ const VehicleIntelligence = () => {
 
   const [tripDistance, setTripDistance] = useState(120);
 
-  // Error validations state
-  const [errors, setErrors] = useState({});
-  const [isFormValid, setIsFormValid] = useState(true);
-
   // Logic results state
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -52,117 +48,116 @@ const VehicleIntelligence = () => {
 
   // Sync inputs with localStorage trip details & vehicle profile if present
   useEffect(() => {
-    const savedTripId = localStorage.getItem('gd_tripId');
-    if (savedTripId) setTripId(savedTripId);
-
-    // 1. Try to pre-fill from the saved vehicle profile (gd_vehicle)
-    const savedVehicleStr = localStorage.getItem('gd_vehicle');
-    let loadedFromProfile = false;
-    
-    const prefillFromVehicle = (vehicle) => {
-      if (vehicle.type) {
-        setVehicleType(vehicle.type);
-        if (vehicle.type === 'EV') {
-          setEvInputs(prev => ({
-            ...prev,
-            batteryPercentage: vehicle.batteryPercentage !== undefined ? Number(vehicle.batteryPercentage) : 80,
-            batteryCapacity: 60,
-            vehicleEfficiency: 5.5
-          }));
-        } else {
-          setFuelInputs(prev => ({
-            ...prev,
-            fuelLevel: vehicle.fuelPercentage !== undefined ? (Number(vehicle.fuelPercentage) / 100) * 45 : 35, // default tank 45L
-            mileage: vehicle.mileage !== undefined ? Number(vehicle.mileage) : 15
-          }));
-        }
-      }
-    };
-
-    if (savedVehicleStr) {
-      try {
-        const vehicle = JSON.parse(savedVehicleStr);
-        prefillFromVehicle(vehicle);
-        loadedFromProfile = true;
-      } catch (e) {
-        console.error('Failed to parse saved vehicle profile:', e);
-      }
-    }
-
-    // 2. Fetch vehicle profile from API if user is logged in
-    const gdUser = localStorage.getItem('gd_user');
-    if (gdUser) {
-      try {
-        const user = JSON.parse(gdUser);
-        if (user.id) {
-          getVehicle(user.id).then(res => {
-            if (res.success && res.data) {
-              localStorage.setItem('gd_vehicle', JSON.stringify(res.data));
-              prefillFromVehicle(res.data);
-            }
-          }).catch(err => console.log('Offline/no vehicle found via API', err));
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    // 3. Fallback/Sync with active trip form (gd_form) if profile was not available
-    if (!loadedFromProfile) {
-      const savedFormStr = localStorage.getItem('gd_form');
-      if (savedFormStr) {
-        try {
-          const savedForm = JSON.parse(savedFormStr);
-          if (savedForm.vehicleType) {
-            setVehicleType(savedForm.vehicleType === 'Hybrid' ? 'EV' : savedForm.vehicleType);
+    const timer = setTimeout(() => {
+      // 1. Try to pre-fill from the saved vehicle profile (gd_vehicle)
+      const savedVehicleStr = localStorage.getItem('gd_vehicle');
+      let loadedFromProfile = false;
+      
+      const prefillFromVehicle = (vehicle) => {
+        if (vehicle.type) {
+          setVehicleType(vehicle.type);
+          if (vehicle.type === 'EV') {
+            setEvInputs(prev => ({
+              ...prev,
+              batteryPercentage: vehicle.batteryPercentage !== undefined ? Number(vehicle.batteryPercentage) : 80,
+              batteryCapacity: 60,
+              vehicleEfficiency: 5.5
+            }));
+          } else {
+            setFuelInputs(prev => ({
+              ...prev,
+              fuelLevel: vehicle.fuelPercentage !== undefined ? (Number(vehicle.fuelPercentage) / 100) * 45 : 35, // default tank 45L
+              mileage: vehicle.mileage !== undefined ? Number(vehicle.mileage) : 15
+            }));
           }
-          if (savedForm.fuelOrBatteryLevel) {
-            const val = Number(savedForm.fuelOrBatteryLevel);
-            if (savedForm.vehicleType === 'EV') {
-              setEvInputs(prev => ({ ...prev, batteryPercentage: val }));
-            } else {
-              setFuelInputs(prev => ({ ...prev, fuelLevel: val }));
+        }
+      };
+
+      if (savedVehicleStr) {
+        try {
+          const vehicle = JSON.parse(savedVehicleStr);
+          prefillFromVehicle(vehicle);
+          loadedFromProfile = true;
+        } catch (e) {
+          console.error('Failed to parse saved vehicle profile:', e);
+        }
+      }
+
+      // 2. Fetch vehicle profile from API if user is logged in
+      const gdUser = localStorage.getItem('gd_user');
+      if (gdUser) {
+        try {
+          const user = JSON.parse(gdUser);
+          if (user.id) {
+            getVehicle(user.id).then(res => {
+              if (res.success && res.data) {
+                localStorage.setItem('gd_vehicle', JSON.stringify(res.data));
+                prefillFromVehicle(res.data);
+              }
+            }).catch(err => console.log('Offline/no vehicle found via API', err));
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      // 3. Fallback/Sync with active trip form (gd_form) if profile was not available
+      if (!loadedFromProfile) {
+        const savedFormStr = localStorage.getItem('gd_form');
+        if (savedFormStr) {
+          try {
+            const savedForm = JSON.parse(savedFormStr);
+            if (savedForm.vehicleType) {
+              setVehicleType(savedForm.vehicleType === 'Hybrid' ? 'EV' : savedForm.vehicleType);
+            }
+            if (savedForm.fuelOrBatteryLevel) {
+              const val = Number(savedForm.fuelOrBatteryLevel);
+              if (savedForm.vehicleType === 'EV') {
+                setEvInputs(prev => ({ ...prev, batteryPercentage: val }));
+              } else {
+                setFuelInputs(prev => ({ ...prev, fuelLevel: val }));
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse localStorage active form:', e);
+          }
+        }
+      }
+
+      // Pre-fill trip distance from itinerary timeline size if any
+      const savedTimelineStr = localStorage.getItem('gd_timeline');
+      if (savedTimelineStr) {
+        try {
+          const timeline = JSON.parse(savedTimelineStr);
+          if (timeline.length > 0) {
+            // Estimate based on timeline day driving minutes
+            const totalMins = timeline.reduce((acc, t) => {
+              if (!t.travelTimeFromPrevious) return acc;
+              const matchM = t.travelTimeFromPrevious.match(/(\d+)m/);
+              const matchH = t.travelTimeFromPrevious.match(/(\d+)h/);
+              const hrs = matchH ? parseInt(matchH[1], 10) : 0;
+              const mins = matchM ? parseInt(matchM[1], 10) : 0;
+              return acc + (hrs * 60 + mins);
+            }, 0);
+            if (totalMins > 0) {
+              setTripDistance(totalMins);
             }
           }
         } catch (e) {
-          console.error('Failed to parse localStorage active form:', e);
+          console.error('Failed to parse timeline for distance prefill:', e);
         }
       }
-    }
+    }, 0);
 
-    // Pre-fill trip distance from itinerary timeline size if any
-    const savedTimelineStr = localStorage.getItem('gd_timeline');
-    if (savedTimelineStr) {
-      try {
-        const timeline = JSON.parse(savedTimelineStr);
-        if (timeline.length > 0) {
-          // Estimate based on timeline day driving minutes
-          const totalMins = timeline.reduce((acc, t) => {
-            if (!t.travelTimeFromPrevious) return acc;
-            const matchM = t.travelTimeFromPrevious.match(/(\d+)m/);
-            const matchH = t.travelTimeFromPrevious.match(/(\d+)h/);
-            const hrs = matchH ? parseInt(matchH[1], 10) : 0;
-            const mins = matchM ? parseInt(matchM[1], 10) : 0;
-            return acc + (hrs * 60 + mins);
-          }, 0);
-          if (totalMins > 0) {
-            setTripDistance(totalMins);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to parse timeline for distance prefill:', e);
-      }
-    }
+    return () => clearTimeout(timer);
   }, []);
 
-  // Real-time validations
-  useEffect(() => {
+  // Real-time validations (derived)
+  const errors = (() => {
     const errs = {};
-
     if (tripDistance <= 0 || tripDistance === '') {
       errs.tripDistance = 'Trip distance must be greater than 0 km.';
     }
-
     if (vehicleType === 'EV') {
       if (evInputs.batteryPercentage < 0 || evInputs.batteryPercentage > 100 || evInputs.batteryPercentage === '') {
         errs.batteryPercentage = 'Battery percentage must be between 0 and 100.';
@@ -181,10 +176,10 @@ const VehicleIntelligence = () => {
         errs.mileage = 'Mileage must be greater than 0 km/L.';
       }
     }
+    return errs;
+  })();
 
-    setErrors(errs);
-    setIsFormValid(Object.keys(errs).length === 0);
-  }, [vehicleType, evInputs, fuelInputs, tripDistance]);
+  const isFormValid = Object.keys(errors).length === 0;
 
   const handleEvChange = (e) => {
     const { name, value } = e.target;

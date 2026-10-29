@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertTriangle, AlertOctagon, Info, CheckCircle2 } from 'lucide-react';
 
 const AlertCard = ({
@@ -38,7 +37,7 @@ const AlertCard = ({
 
   return (
     <div className={`p-4 border rounded-2xl flex gap-3.5 shadow-md items-start ${currentStyle.bg} ${className}`}>
-      <IconComponent className={`h-5 w-5 mt-0.5 flex-shrink-0 ${currentStyle.iconColor}`} />
+      <IconComponent className={`h-5 w-5 mt-0.5 shrink-0 ${currentStyle.iconColor}`} />
       <div className="flex-1 min-w-0">
         {title && <h4 className="font-bold text-white text-sm mb-1">{title}</h4>}
         <p className="text-xs leading-relaxed">{message}</p>

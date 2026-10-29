@@ -7,8 +7,8 @@
 export const localCalculateRange = (inputs) => {
   const { vehicleType, tripDistance, batteryPercentage, batteryCapacity, vehicleEfficiency, fuelLevel, mileage } = inputs;
 
-  let estimatedRange = 0;
-  let remainingFuelOrBattery = 0;
+  let estimatedRange;
+  let remainingFuelOrBattery;
 
   if (vehicleType === 'EV') {
     const energyAvailable = (batteryPercentage / 100) * batteryCapacity;
@@ -75,7 +75,7 @@ export const localPredictBatteryHealth = (inputs) => {
 
   score = Math.max(0, Math.min(100, score));
 
-  let status = 'Excellent';
+  let status;
   if (score >= 90) status = 'Excellent';
   else if (score >= 75) status = 'Good';
   else if (score >= 50) status = 'Moderate';
@@ -89,7 +89,7 @@ export const localPredictBatteryHealth = (inputs) => {
 
 // 3. Diagnose Mileage Performance
 export const localDiagnoseMileage = (vehicleType, mileage) => {
-  let performance = 'Average';
+  let performance;
   if (vehicleType === 'EV') {
     if (mileage >= 7) performance = 'Excellent';
     else if (mileage >= 5.5) performance = 'Good';

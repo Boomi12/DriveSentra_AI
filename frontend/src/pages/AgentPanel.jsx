@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Map, Zap, Compass, AlertOctagon, BrainCircuit, Terminal, Activity, HelpCircle } from 'lucide-react';
+import { Shield, Map, Zap, Compass, AlertOctagon, BrainCircuit, Terminal, Activity } from 'lucide-react';
 import { getAgentRecommendations } from '../services/api';
 
 const AgentPanel = () => {
   const navigate = useNavigate();
   const [agents, setAgents] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(() => !localStorage.getItem('gd_tripId') ? false : true);
 
   const tripId = localStorage.getItem('gd_tripId');
 
-  const fetchAgents = async (isUpdate = false) => {
+  const fetchAgents = useCallback(async () => {
+    await Promise.resolve();
     if (!tripId) {
       setLoading(false);
       return;
@@ -59,21 +59,24 @@ const AgentPanel = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tripId]);
 
   useEffect(() => {
-    fetchAgents();
+    const timer = setTimeout(() => {
+      fetchAgents();
+    }, 0);
 
     // Listen to digital twin updates
     const handleTwinUpdate = () => {
-      fetchAgents(true);
+      fetchAgents();
     };
 
     window.addEventListener('twin-updated', handleTwinUpdate);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('twin-updated', handleTwinUpdate);
     };
-  }, [tripId]);
+  }, [fetchAgents]);
 
   if (loading) {
     return (

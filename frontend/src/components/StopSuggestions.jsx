@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, AlertOctagon, CheckCircle2, ShieldAlert, Zap, Fuel, Calendar, Clock, Loader2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MapPin, AlertOctagon, CheckCircle2, Zap, Fuel, Calendar, Clock, Loader2, X } from 'lucide-react';
 import { bookChargingSlot, getChargingBookings } from '../services/api';
 
 const StopSuggestions = ({ vehicleType, isTripPossible, estimatedRange, tripDistance, stops }) => {

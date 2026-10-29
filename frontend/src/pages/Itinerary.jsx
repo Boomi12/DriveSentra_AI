@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, Clock, MapPin, Sparkles, Navigation, ChevronRight, AlertCircle, 
-  ArrowRight, Edit3, Check, X, Info, RotateCcw, CheckCircle2, Hotel, Home,
+  Calendar, Clock, Sparkles, Navigation, ChevronRight, AlertCircle, 
+  ArrowRight, Edit3, Check, X, RotateCcw, Hotel, Home,
   Plus, Trash2, ChevronUp, ChevronDown, Pin, Zap, Fuel, Coffee, Utensils, Compass, Loader2
 } from 'lucide-react';
 import { 
@@ -12,11 +12,9 @@ import {
   removeItineraryStop, 
   reorderItineraryStops, 
   updateStopDurationApi, 
-  toggleStopPinApi, 
-  rescheduleItinerary 
+  toggleStopPinApi
 } from '../services/api';
 import { 
-  validateWaypointTime, 
   calculateClientRoundTripMetrics, 
   recalculateScheduleClient 
 } from '../utils/timeValidation';
@@ -24,7 +22,7 @@ import {
 const Itinerary = () => {
   const navigate = useNavigate();
   const [itinerary, setItinerary] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !localStorage.getItem('gd_tripId') ? false : true);
   const [error, setError] = useState(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
 
@@ -59,6 +57,7 @@ const Itinerary = () => {
   ];
 
   const fetchItinerary = async () => {
+    await Promise.resolve();
     const tripId = localStorage.getItem('gd_tripId');
     if (!tripId) {
       setLoading(false);
@@ -101,7 +100,10 @@ const Itinerary = () => {
   };
 
   useEffect(() => {
-    fetchItinerary();
+    const timer = setTimeout(() => {
+      fetchItinerary();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Dispatch twin update event helper
@@ -584,7 +586,7 @@ const Itinerary = () => {
 
       {error && (
         <div className="p-4 bg-amber-950/30 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex gap-3 items-center">
-          <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0" />
+          <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
           <div>
             <span className="font-bold">Offline Sync Mode: </span>
             {error} Local fallback database loaded successfully.
@@ -601,7 +603,7 @@ const Itinerary = () => {
           const isNewDay = idx === 0 || (event.day && event.day !== (itinerary.timeline[idx - 1]?.day || 1));
           
           return (
-            <React.Fragment key={event.id || `stop_${idx}`}>
+            <Fragment key={event.id || `stop_${idx}`}>
               {/* Day divider header */}
               {isNewDay && (
                 <div className="py-4 my-2 flex items-center gap-3">
@@ -848,7 +850,7 @@ const Itinerary = () => {
                   </div>
 
                   <div className="flex items-start gap-2.5 text-slate-400 text-xs leading-relaxed">
-                    <Sparkles className="h-4 w-4 text-purple-400 mt-0.5 flex-shrink-0" />
+                    <Sparkles className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
                     <p>{event.reason}</p>
                   </div>
 
@@ -862,7 +864,7 @@ const Itinerary = () => {
                   {/* Warning Messages Alert Banner */}
                   {event.warning && (
                     <div className="mt-3 p-3 bg-rose-950/20 border border-rose-500/25 rounded-xl text-rose-300 text-[11px] leading-relaxed flex items-start gap-2 animate-pulse">
-                      <AlertCircle className="h-4 w-4 text-rose-400 mt-0.5 flex-shrink-0" />
+                      <AlertCircle className="h-4 w-4 text-rose-400 mt-0.5 shrink-0" />
                       <div>
                         <strong className="font-bold">Schedule Notice: </strong>
                         {event.warning}
@@ -872,7 +874,7 @@ const Itinerary = () => {
 
                 </div>
               </div>
-            </React.Fragment>
+            </Fragment>
           );
         })}
       </div>

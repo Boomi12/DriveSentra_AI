@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { signup } from '../services/api';
 import { Shield, User, Mail, Lock } from 'lucide-react';
 import PrimaryButton from '../components/PrimaryButton';
@@ -13,60 +13,48 @@ const Signup = () => {
     confirmPassword: ''
   });
   
-  const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({
     name: false,
     email: false,
     password: false,
     confirmPassword: false
   });
-  const [isFormValid, setIsFormValid] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Validate fields immediately as user types
-  useEffect(() => {
-    const newErrors = {};
-    
-    // Name check
-    if (formData.name !== undefined && formData.name.trim() === '') {
-      newErrors.name = 'Name is required';
+  // Derive validation
+  const errors = {};
+  if (formData.name !== undefined && formData.name.trim() === '') {
+    errors.name = 'Name is required';
+  }
+  
+  if (formData.email !== undefined && formData.email.trim() !== '') {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
     }
-    
-    // Email check
-    if (formData.email !== undefined && formData.email.trim() !== '') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        newErrors.email = 'Please enter a valid email address';
-      }
-    } else if (formData.email !== undefined) {
-      newErrors.email = 'Email is required';
-    }
+  } else if (formData.email !== undefined) {
+    errors.email = 'Email is required';
+  }
 
-    // Password check
-    if (formData.password !== undefined && formData.password !== '') {
-      if (formData.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters';
-      }
-    } else if (formData.password !== undefined) {
-      newErrors.password = 'Password is required';
+  if (formData.password !== undefined && formData.password !== '') {
+    if (formData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
     }
+  } else if (formData.password !== undefined) {
+    errors.password = 'Password is required';
+  }
 
-    // Confirm password check
-    if (formData.confirmPassword !== undefined && formData.confirmPassword !== '') {
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
-      }
-    } else if (formData.confirmPassword !== undefined) {
-      newErrors.confirmPassword = 'Confirm password is required';
+  if (formData.confirmPassword !== undefined && formData.confirmPassword !== '') {
+    if (formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match';
     }
+  } else if (formData.confirmPassword !== undefined) {
+    errors.confirmPassword = 'Confirm password is required';
+  }
 
-    setErrors(newErrors);
-    
-    // Form is valid if no errors and all fields are filled
-    const allFilled = formData.name.trim() && formData.email.trim() && formData.password && formData.confirmPassword;
-    setIsFormValid(Object.keys(newErrors).length === 0 && allFilled);
-  }, [formData]);
+  const allFilled = Boolean(formData.name.trim() && formData.email.trim() && formData.password && formData.confirmPassword);
+  const isFormValid = Object.keys(errors).length === 0 && allFilled;
 
   const handleChange = (e) => {
     const { name, value } = e.target;

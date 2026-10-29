@@ -1,5 +1,4 @@
-import React from 'react';
-import { Gauge, Info, CheckCircle2, AlertTriangle, HelpCircle, ShieldAlert } from 'lucide-react';
+import { Gauge, Info } from 'lucide-react';
 
 const MileageAnalytics = ({ vehicleType, performance, suggestions }) => {
   const getPerfColor = (perf) => {
@@ -70,7 +69,7 @@ const MileageAnalytics = ({ vehicleType, performance, suggestions }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {suggestions && suggestions.map((sug, idx) => (
                 <div key={idx} className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl flex items-start gap-2.5 hover:border-purple-500/10 transition-colors">
-                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0"></span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0"></span>
                   <div className="flex-1">
                     {formatSuggestion(sug)}
                   </div>

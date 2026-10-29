@@ -298,7 +298,7 @@ export const PLACE_SPECS_DB = {
   "adyar ananda bhavan": { open: "06:30 AM", close: "10:30 PM", duration: 45, minDuration: 25, type: "restaurant" },
 
   // Chennai Rest Stops
-  "cafe coffee day": { open: "24 hours", duration: 30, minDuration: 15, type: "restStop" },
+  "cafe coffee day chennai": { open: "24 hours", duration: 30, minDuration: 15, type: "restStop" },
   "writer’s cafe": { open: "09:00 AM", close: "10:00 PM", duration: 45, minDuration: 20, type: "restStop" },
   "amethyst cafe": { open: "07:30 AM", close: "11:00 PM", duration: 60, minDuration: 30, type: "restStop" },
   "sandy’s chocolate laboratory": { open: "11:00 AM", close: "11:00 PM", duration: 45, minDuration: 25, type: "restStop" },
@@ -319,7 +319,7 @@ export const PLACE_SPECS_DB = {
   "ather grid chennai": { open: "08:00 AM", close: "10:00 PM", duration: 30, minDuration: 15, type: "refuel" },
   "indianoil": { open: "24 hours", duration: 20, minDuration: 10, type: "refuel" },
   "bharat petroleum": { open: "24 hours", duration: 20, minDuration: 10, type: "refuel" },
-  "hp petrol pump": { open: "24 hours", duration: 20, minDuration: 10, type: "refuel" },
+  "hp petrol pump chennai": { open: "24 hours", duration: 20, minDuration: 10, type: "refuel" },
 
   // General/Default Destination
   "scenic city viewpoint": { open: "06:00 AM", close: "09:00 PM", duration: 60, minDuration: 30, type: "attraction" },
@@ -349,7 +349,7 @@ export const PLACE_SPECS_DB = {
   "green canopy cafe stop": { open: "07:00 AM", close: "09:00 PM", duration: 30, minDuration: 15, type: "restStop" },
   "star highway lounge": { open: "24 hours", duration: 30, minDuration: 15, type: "restStop" },
   "refresh & fuel hub": { open: "24 hours", duration: 25, minDuration: 10, type: "restStop" },
-  "highway chai point": { open: "06:00 AM", close: "11:00 PM", duration: 30, minDuration: 15, type: "restStop" },
+  "highway chai point express": { open: "06:00 AM", close: "11:00 PM", duration: 30, minDuration: 15, type: "restStop" },
   "munch & go": { open: "24 hours", duration: 30, minDuration: 15, type: "restStop" },
   "milestone food court": { open: "07:00 AM", close: "10:30 PM", duration: 45, minDuration: 25, type: "restStop" },
   "truckers oasis": { open: "24 hours", duration: 45, minDuration: 20, type: "restStop" },
@@ -484,7 +484,7 @@ export function getLocalPlaceTimeStatus(placeName, arrivalTime) {
 }
 
 // Check if a place is open at arrival time and stays open throughout duration
-export function isPlaceOpen(placeName, arrivalTime, durationMinutes) {
+export function isPlaceOpen(placeName, arrivalTime) {
   const status = getLocalPlaceTimeStatus(placeName, arrivalTime);
   return status === "OPEN" || status === "LIMITED";
 }
@@ -585,7 +585,7 @@ export function getValidationMessage(reason) {
 }
 
 // Client-side Round Trip Metrics Calculation
-export function calculateClientRoundTripMetrics(timeline, source, destination) {
+export function calculateClientRoundTripMetrics(timeline) {
   if (!timeline || timeline.length === 0) {
     return {
       totalDistanceKm: 0,
@@ -698,7 +698,6 @@ export function recalculateScheduleClient(timeline, tripDetails = {}) {
     item.duration = duration;
 
     // Pinned constraints vs opening hours
-    let waitMinutes = 0;
     let activityStartMinutes = currentMinutes;
 
     if (item.isPinned && item.pinnedTime) {
@@ -711,7 +710,10 @@ export function recalculateScheduleClient(timeline, tripDetails = {}) {
         item.warning = `Pinned reservation conflict: Cannot reach pinned reservation at ${item.pinnedTime}. Estimated arrival is ${arrivalTimeStr}.`;
         activityStartMinutes = currentMinutes;
       } else {
-        waitMinutes = pinnedMinutes - currentMinutes;
+        const waitMinutes = pinnedMinutes - currentMinutes;
+        if (waitMinutes > 0) {
+          item.waitTime = `${waitMinutes}m`;
+        }
         activityStartMinutes = pinnedMinutes;
         item.hasConflict = false;
         item.isPinnedConflict = false;
@@ -728,7 +730,8 @@ export function recalculateScheduleClient(timeline, tripDetails = {}) {
         const closeTime = specs.close || specs.closeTime || "06:00 PM";
         const openMins = timeToMinutes(openTime);
         if (currentMinutes < openMins) {
-          waitMinutes = openMins - currentMinutes;
+          const waitMinutes = openMins - currentMinutes;
+          item.waitTime = `${waitMinutes}m`;
           activityStartMinutes = openMins;
           item.isOpen = true;
         } else {

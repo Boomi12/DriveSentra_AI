@@ -1,5 +1,4 @@
-import React from 'react';
-import { Fuel, ShieldAlert, Sparkles, CheckCircle2, AlertTriangle, Zap } from 'lucide-react';
+import { Fuel, CheckCircle2, AlertTriangle, Zap } from 'lucide-react';
 
 const FuelRangeCard = ({ vehicleType, fuelLevel, mileage, tripDistance, estimatedRange, isTripPossible, stopsRequired, remainingFuel }) => {
   return (

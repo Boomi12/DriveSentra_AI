@@ -1,5 +1,4 @@
-import React from 'react';
-import { Car, Zap, Fuel, Compass } from 'lucide-react';
+import { Car, Zap, Fuel } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
 const VehicleInfoCard = ({ vehicle, className = '', onEditClick }) => {

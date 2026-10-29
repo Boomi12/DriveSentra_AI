@@ -1,4 +1,3 @@
-import React from 'react';
 import { Zap, Fuel, Activity } from 'lucide-react';
 
 const VehicleTypeSelector = ({ selectedType, onChange }) => {

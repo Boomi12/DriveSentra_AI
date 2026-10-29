@@ -1,27 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getVehicle, getTwinState } from '../services/api';
-import { Shield, ShieldAlert, Zap, Fuel, Activity, Navigation, Eye, User, Sparkles, MapPin, PhoneCall, AlertOctagon, AlertTriangle, BrainCircuit } from 'lucide-react';
+import { getVehicle, getTwinState, getActiveItinerary } from '../services/api';
+import { ShieldAlert, Activity, Navigation, Eye, Sparkles, MapPin, PhoneCall, AlertOctagon, AlertTriangle, BrainCircuit } from 'lucide-react';
 import DashboardCard from '../components/DashboardCard';
-import StatusBadge from '../components/StatusBadge';
 import AlertCard from '../components/AlertCard';
 import VehicleInfoCard from '../components/VehicleInfoCard';
 import PrimaryButton from '../components/PrimaryButton';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [vehicle, setVehicle] = useState(null);
+  const [vehicle, setVehicle] = useState(() => {
+    try {
+      const localVehicle = localStorage.getItem('gd_vehicle');
+      return localVehicle ? JSON.parse(localVehicle) : null;
+    } catch {
+      return null;
+    }
+  });
   const [twin, setTwin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sosActive, setSosActive] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
-  const [error, setError] = useState('');
-  const [activeTrip, setActiveTrip] = useState(null);
+  const [activeTrip, setActiveTrip] = useState(() => {
+    try {
+      const savedForm = localStorage.getItem('gd_form');
+      return savedForm ? JSON.parse(savedForm) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const user = JSON.parse(localStorage.getItem('gd_user') || '{}');
   const tripId = localStorage.getItem('gd_tripId');
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    await Promise.resolve();
     try {
       // 1. Fetch Vehicle Profile
       if (user.id) {
@@ -31,18 +44,43 @@ const Dashboard = () => {
           localStorage.setItem('gd_vehicle', JSON.stringify(vehicleRes.data));
         }
       }
-    } catch (err) {
+    } catch {
       console.log('Unable to fetch vehicle from DB, checking local storage.');
       const localVehicle = localStorage.getItem('gd_vehicle');
       if (localVehicle) {
-        setVehicle(JSON.parse(localVehicle));
+        try {
+          setVehicle(JSON.parse(localVehicle));
+        } catch {
+          // Ignore parse error
+        }
       }
     }
 
     try {
-      // 2. Fetch Active Twin Telemetry if tripId exists
-      if (tripId) {
-        const twinRes = await getTwinState(tripId);
+      // If tripId is missing but user is logged in, attempt to restore active itinerary
+      let effectiveTripId = tripId;
+      if (!effectiveTripId && user.id) {
+        try {
+          const activeRes = await getActiveItinerary(user.id);
+          if (activeRes.success && activeRes.data) {
+            effectiveTripId = activeRes.data.tripId;
+            localStorage.setItem('gd_tripId', activeRes.data.tripId);
+            if (activeRes.data.timeline) {
+              localStorage.setItem('gd_timeline', JSON.stringify(activeRes.data.timeline));
+            }
+            if (activeRes.data.tripDetails) {
+              localStorage.setItem('gd_form', JSON.stringify(activeRes.data.tripDetails));
+              setActiveTrip(activeRes.data.tripDetails);
+            }
+          }
+        } catch {
+          // No active trip found or offline
+        }
+      }
+
+      // 2. Fetch Active Twin Telemetry if effectiveTripId exists
+      if (effectiveTripId) {
+        const twinRes = await getTwinState(effectiveTripId);
         if (twinRes.success && twinRes.data) {
           setTwin(twinRes.data);
         }
@@ -55,18 +93,20 @@ const Dashboard = () => {
         } catch (e) {
           console.error(e);
         }
-      } else {
+      } else if (!effectiveTripId) {
         setActiveTrip(null);
       }
-    } catch (err) {
+    } catch {
       console.log('Unable to fetch twin state from DB, using fallback defaults.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [tripId, user.id]);
 
   useEffect(() => {
-    fetchDashboardData();
+    const timer = setTimeout(() => {
+      fetchDashboardData();
+    }, 0);
 
     // Listen to twin updates from simulations
     const handleTwinUpdate = () => {
@@ -74,9 +114,10 @@ const Dashboard = () => {
     };
     window.addEventListener('twin-updated', handleTwinUpdate);
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('twin-updated', handleTwinUpdate);
     };
-  }, [tripId]);
+  }, [fetchDashboardData]);
 
   // Handle SOS emergency action trigger
   const handleSosTrigger = () => {
@@ -291,7 +332,7 @@ const Dashboard = () => {
 
           {twin?.vehicleTwin?.fuelWarning && (
             <div className="mt-5 p-4 bg-red-950/20 border border-red-500/20 rounded-2xl flex items-start gap-3.5">
-              <div className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0 mt-0.5">
+              <div className="h-9 w-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0 mt-0.5">
                 <AlertTriangle className="h-5 w-5 animate-pulse" />
               </div>
               <div className="space-y-1">

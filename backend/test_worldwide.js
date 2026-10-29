@@ -27,7 +27,7 @@ async function runWorldwideTests() {
 
   // Test 2: Multi-day Travel Curation (Bangalore -> Mysore, 3 Days, Balanced Style)
   console.log('\n--- 2. Testing 3-Day Itinerary Curation (Bangalore -> Mysore) ---');
-  const multiDayItin = generateAccurateItinerary({
+  const multiDayItin = await generateAccurateItinerary({
     source: 'Bangalore',
     destination: 'Mysore',
     tripDate: new Date(Date.now() + 5 * 24 * 3600 * 1000).toLocaleDateString('en-CA'),

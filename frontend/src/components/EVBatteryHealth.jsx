@@ -1,5 +1,4 @@
-import React from 'react';
-import { Battery, ShieldAlert, Sparkles, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
+import { Battery, ShieldAlert, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
 
 const EVBatteryHealth = ({ healthScore, healthStatus, usagePattern, chargingNeed, batteryPercentage }) => {
   const getStatusColor = (status) => {

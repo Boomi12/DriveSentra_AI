@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, Activity, User, Car, CloudSun, Zap, CheckCircle2, AlertTriangle, AlertOctagon, HelpCircle, Loader2 } from 'lucide-react';
+import { ShieldAlert, Activity, User, Car, CloudSun, CheckCircle2, AlertTriangle, AlertOctagon, Loader2 } from 'lucide-react';
 import { getTwinState, updateTwinState } from '../services/api';
 
 const DigitalTwin = () => {
   const navigate = useNavigate();
   const [twin, setTwin] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !localStorage.getItem('gd_tripId') ? false : true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState(null);
   const [activeScenario, setActiveScenario] = useState('Clear Skies');
 
   const tripId = localStorage.getItem('gd_tripId');
 
-  const fetchTwin = async () => {
+  const fetchTwin = useCallback(async () => {
+    await Promise.resolve();
     if (!tripId) {
       setLoading(false);
       return;
@@ -38,11 +39,14 @@ const DigitalTwin = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tripId]);
 
   useEffect(() => {
-    fetchTwin();
-  }, [tripId]);
+    const timer = setTimeout(() => {
+      fetchTwin();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchTwin]);
 
   const handleSimulateUpdate = async (scenario) => {
     if (!tripId) return;
@@ -316,8 +320,8 @@ const DigitalTwin = () => {
             </div>
           </div>
 
-          <div className="mt-6 p-2.5 rounded-lg border border-slate-800 text-[11px] font-semibold text-center uppercase tracking-wider bg-slate-950 text-slate-400">
-            Drivetrain: {twin.vehicleTwin.vehicleType}
+          <div className={`mt-6 p-2.5 rounded-lg border text-[11px] font-semibold text-center uppercase tracking-wider ${getHealthColor(twin.vehicleTwin.healthStatus || 'good')}`}>
+            Drivetrain: {twin.vehicleTwin.vehicleType} ({twin.vehicleTwin.healthStatus ? twin.vehicleTwin.healthStatus.toUpperCase() : 'OPTIMAL'})
           </div>
         </div>
 

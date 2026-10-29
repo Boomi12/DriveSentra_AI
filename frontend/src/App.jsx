@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Calendar, Activity, BrainCircuit, ShieldAlert, Shield, Menu, X, ArrowUpRight, LayoutDashboard, Sliders, LogOut, Gauge } from 'lucide-react';
+import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge } from 'lucide-react';
 
 import JourneyCompanion from './pages/JourneyCompanion';
 import Itinerary from './pages/Itinerary';
@@ -23,8 +23,15 @@ const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTripId, setActiveTripId] = useState(null);
-  const [user, setUser] = useState(null);
+  const [activeTripId, setActiveTripId] = useState(() => localStorage.getItem('gd_tripId'));
+  const [user, setUser] = useState(() => {
+    try {
+      const loggedUser = localStorage.getItem('gd_user');
+      return loggedUser ? JSON.parse(loggedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
 
@@ -99,7 +106,6 @@ const DashboardLayout = ({ children }) => {
   };
 
   useEffect(() => {
-    checkState();
     window.addEventListener('storage', checkState);
     window.addEventListener('twin-updated', checkState);
     window.addEventListener('auth-change', checkState);

@@ -1,5 +1,3 @@
-import React from 'react';
-
 const DashboardCard = ({
   title,
   icon: IconComponent,
@@ -22,7 +20,7 @@ const DashboardCard = ({
               {title}
             </h3>
             {headerAction && (
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 {headerAction}
               </div>
             )}

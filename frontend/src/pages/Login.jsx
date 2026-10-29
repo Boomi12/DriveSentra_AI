@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { login, getVehicle } from '../services/api';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { login, getVehicle, getActiveItinerary } from '../services/api';
 import { Shield, Mail, Lock } from 'lucide-react';
 import PrimaryButton from '../components/PrimaryButton';
 
@@ -11,44 +11,34 @@ const Login = () => {
     password: ''
   });
   
-  const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({
     email: false,
     password: false
   });
-  const [isFormValid, setIsFormValid] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Validate fields immediately as user types
-  useEffect(() => {
-    const newErrors = {};
-
-    // Email check
-    if (formData.email !== undefined && formData.email.trim() !== '') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.email)) {
-        newErrors.email = 'Please enter a valid email address';
-      }
-    } else if (formData.email !== undefined) {
-      newErrors.email = 'Email is required';
+  // Derive validation
+  const errors = {};
+  if (formData.email !== undefined && formData.email.trim() !== '') {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
     }
+  } else if (formData.email !== undefined) {
+    errors.email = 'Email is required';
+  }
 
-    // Password check
-    if (formData.password !== undefined && formData.password !== '') {
-      if (formData.password.length < 6) {
-        newErrors.password = 'Password must be at least 6 characters';
-      }
-    } else if (formData.password !== undefined) {
-      newErrors.password = 'Password is required';
+  if (formData.password !== undefined && formData.password !== '') {
+    if (formData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
     }
+  } else if (formData.password !== undefined) {
+    errors.password = 'Password is required';
+  }
 
-    setErrors(newErrors);
-
-    // Form is valid if no errors and all fields are filled
-    const allFilled = formData.email.trim() && formData.password;
-    setIsFormValid(Object.keys(newErrors).length === 0 && allFilled);
-  }, [formData]);
+  const allFilled = Boolean(formData.email.trim() && formData.password);
+  const isFormValid = Object.keys(errors).length === 0 && allFilled;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -85,6 +75,30 @@ const Login = () => {
         // Trigger event to re-render layouts
         window.dispatchEvent(new Event('auth-change'));
 
+        // Restore active itinerary if exists in database
+        try {
+          const itinRes = await getActiveItinerary(data.user.id);
+          if (itinRes.success && itinRes.data) {
+            localStorage.setItem('gd_tripId', itinRes.data.tripId);
+            localStorage.setItem('gd_timeline', JSON.stringify(itinRes.data.timeline));
+            localStorage.setItem('gd_form', JSON.stringify({
+              source: itinRes.data.source,
+              destination: itinRes.data.destination,
+              tripDate: itinRes.data.tripDate,
+              startTime: itinRes.data.startTime,
+              tripType: itinRes.data.tripType,
+              vehicleType: itinRes.data.vehicleType,
+              durationDays: itinRes.data.durationDays || 1,
+              tripMode: itinRes.data.tripMode || 'Round Trip'
+            }));
+            if (itinRes.data.roundTripMetrics) {
+              localStorage.setItem('gd_roundTripMetrics', JSON.stringify(itinRes.data.roundTripMetrics));
+            }
+          }
+        } catch {
+          // No prior active itinerary found
+        }
+
         // Check if vehicle profile exists
         try {
           const vehicleRes = await getVehicle(data.user.id);
@@ -94,7 +108,7 @@ const Login = () => {
           } else {
             navigate('/vehicle-setup');
           }
-        } catch (vehicleErr) {
+        } catch {
           // If vehicle search fails (e.g. 404), go to setup page
           navigate('/vehicle-setup');
         }

@@ -1,5 +1,3 @@
-import React from 'react';
-
 const StatusBadge = ({ status = 'low', className = '', ...props }) => {
   const normStatus = status.toLowerCase();
 

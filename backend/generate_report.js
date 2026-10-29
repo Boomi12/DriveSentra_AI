@@ -1,13 +1,13 @@
 import { generateAccurateItinerary, getTravelTime, getPlaceSpecs, minutesToTime, timeToMinutes } from './utils/timePlanner.js';
 import fs from 'fs';
 
-function generateReport() {
+async function generateReport() {
   const source = 'Bangalore';
   const destination = 'Mysore';
   const startTime = '06:00 AM';
   const tripDate = '2026-06-24';
 
-  const itin = generateAccurateItinerary({
+  const itin = await generateAccurateItinerary({
     source,
     destination,
     startTime,

@@ -819,6 +819,24 @@ router.post('/toggle-pin', async (req, res) => {
   }
 });
 
+// GET /api/itinerary/active/:userId
+router.get('/active/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const itinerary = await Itinerary.findOne({ userId, isActive: true }).sort({ createdAt: -1 });
+    if (!itinerary) {
+      return res.status(404).json({ error: 'No active itinerary found for this user' });
+    }
+    res.status(200).json({
+      success: true,
+      data: itinerary
+    });
+  } catch (error) {
+    console.error('Error in GET /active/:userId:', error);
+    res.status(500).json({ error: 'Server error retrieving active itinerary' });
+  }
+});
+
 // GET /api/itinerary/:tripId
 router.get('/:tripId', async (req, res) => {
   try {
@@ -876,24 +894,6 @@ router.post('/update-timeline', async (req, res) => {
   } catch (error) {
     console.error('Error in POST /api/itinerary/update-timeline:', error);
     res.status(500).json({ error: 'Server error updating itinerary timeline' });
-  }
-});
-
-// GET /api/itinerary/active/:userId
-router.get('/active/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const itinerary = await Itinerary.findOne({ userId, isActive: true }).sort({ createdAt: -1 });
-    if (!itinerary) {
-      return res.status(404).json({ error: 'No active itinerary found for this user' });
-    }
-    res.status(200).json({
-      success: true,
-      data: itinerary
-    });
-  } catch (error) {
-    console.error('Error in GET /active/:userId:', error);
-    res.status(500).json({ error: 'Server error retrieving active itinerary' });
   }
 });
 
