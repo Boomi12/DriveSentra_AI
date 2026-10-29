@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   MapPin, 
   Navigation, 
   ArrowRight, 
   Loader2, 
-  Calendar, 
-  Clock, 
   Users, 
   Activity, 
   ShieldAlert, 
@@ -16,7 +14,6 @@ import {
   Save, 
   Trash2, 
   AlertTriangle, 
-  TrendingUp, 
   Coffee, 
   Info 
 } from 'lucide-react';
@@ -36,8 +33,6 @@ const TripPlanner = () => {
     preference: 'Fastest'
   });
 
-  const [formErrors, setFormErrors] = useState({});
-  const [isFormValid, setIsFormValid] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -46,12 +41,7 @@ const TripPlanner = () => {
   const [tripPlan, setTripPlan] = useState(null);
   const [history, setHistory] = useState([]);
 
-  // Fetch history on mount
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const res = await getTripHistory();
       if (res.success) {
@@ -60,10 +50,18 @@ const TripPlanner = () => {
     } catch (err) {
       console.error('Failed to load history:', err);
     }
-  };
+  }, []);
 
-  // Immediate frontend validation
+  // Fetch history on mount
   useEffect(() => {
+    const timer = setTimeout(() => {
+      loadHistory();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadHistory]);
+
+  // Derived immediate frontend validation
+  const formErrors = useMemo(() => {
     const errors = {};
 
     // Source & Destination validation
@@ -106,9 +104,10 @@ const TripPlanner = () => {
       }
     }
 
-    setFormErrors(errors);
-    setIsFormValid(Object.keys(errors).length === 0);
+    return errors;
   }, [formData]);
+
+  const isFormValid = useMemo(() => Object.keys(formErrors).length === 0, [formErrors]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -489,12 +488,12 @@ const TripPlanner = () => {
                   <div 
                     key={trip._id}
                     onClick={() => handleLoadHistoryItem(trip)}
-                    className="p-3 bg-slate-950/60 border border-slate-850 rounded-xl hover:border-purple-500/20 transition-all cursor-pointer flex items-center justify-between group"
+                    className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-purple-500/20 transition-all cursor-pointer flex items-center justify-between group"
                   >
                     <div className="min-w-0 pr-2">
                       <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-white text-xs truncate max-w-[90px]">{trip.source}</span>
-                        <ArrowRight className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                        <ArrowRight className="h-3 w-3 text-slate-500 shrink-0" />
                         <span className="font-extrabold text-purple-300 text-xs truncate max-w-[90px]">{trip.destination}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
@@ -670,15 +669,15 @@ const TripPlanner = () => {
 
                     <div className="mt-4 space-y-4">
                       {tripPlan.recommendedStops.length === 0 ? (
-                        <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-xl flex items-center gap-2">
-                          <Info className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                        <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-xl flex items-center gap-2">
+                          <Info className="h-4 w-4 text-emerald-400 shrink-0" />
                           <p className="text-[11px] text-slate-400 leading-normal">
                             Your starting vehicle range of <b>{tripPlan.calculatedRange} km</b> is fully sufficient to cover the <b>{tripPlan.distanceKm} km</b> trip safely. No mid-route energy stops required.
                           </p>
                         </div>
                       ) : (
                         tripPlan.recommendedStops.map((stop, index) => (
-                          <div key={index} className="p-4 bg-slate-950/70 border border-slate-850 rounded-xl relative overflow-hidden group hover:border-purple-500/20 transition-all">
+                          <div key={index} className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl relative overflow-hidden group hover:border-purple-500/20 transition-all">
                             <div className="absolute top-0 right-0 p-3">
                               <span className="text-[10px] font-black text-purple-300 font-mono bg-purple-500/10 px-2 py-0.5 rounded">
                                 Stop at {stop.distanceKm} km
@@ -723,15 +722,15 @@ const TripPlanner = () => {
 
                     <div className="mt-4 space-y-4">
                       {tripPlan.restBreaks.length === 0 ? (
-                        <div className="p-4 bg-slate-950/40 border border-slate-850 rounded-xl flex items-center gap-2">
-                          <Info className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                        <div className="p-4 bg-slate-950/40 border border-slate-800 rounded-xl flex items-center gap-2">
+                          <Info className="h-4 w-4 text-emerald-400 shrink-0" />
                           <p className="text-[11px] text-slate-400 leading-normal">
                             This trip duration is approximately <b>{tripPlan.durationHours} hours</b>. Since it is below the 2.5 hour safety limit, no intermediate rest breaks are strictly mandated.
                           </p>
                         </div>
                       ) : (
                         tripPlan.restBreaks.map((item, index) => (
-                          <div key={index} className="p-4 bg-slate-950/70 border border-slate-850 rounded-xl relative overflow-hidden group hover:border-amber-500/20 transition-all">
+                          <div key={index} className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl relative overflow-hidden group hover:border-amber-500/20 transition-all">
                             <div className="absolute top-0 right-0 p-3">
                               <span className="text-[10px] font-black text-amber-300 font-mono bg-amber-500/10 px-2 py-0.5 rounded">
                                 Break at {item.time}
@@ -750,9 +749,9 @@ const TripPlanner = () => {
 
                   {/* Safety advisory */}
                   <div className="mt-4 p-3 bg-slate-950/30 border border-dashed border-slate-800 rounded-xl flex items-start gap-2">
-                    <Shield className="h-4.5 w-4.5 text-purple-400 mt-0.5 flex-shrink-0" />
+                    <Shield className="h-4.5 w-4.5 text-purple-400 mt-0.5 shrink-0" />
                     <div>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider">Journey Guardian Advisory</span>
+                      <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider">DriveSentra Journey Advisory</span>
                       <p className="text-[10px] text-slate-400 leading-normal mt-0.5">
                         Ensure seatbelts are fastened for all {tripPlan.passengers} passenger(s). Drive safely!
                       </p>
@@ -776,11 +775,11 @@ const TripPlanner = () => {
 
                 <div className="flex items-start gap-4">
                   {tripPlan.riskLevel === 'High' ? (
-                    <ShieldAlert className="h-10 w-10 text-rose-400 mt-1 flex-shrink-0" />
+                    <ShieldAlert className="h-10 w-10 text-rose-400 mt-1 shrink-0" />
                   ) : tripPlan.riskLevel === 'Medium' ? (
-                    <AlertTriangle className="h-10 w-10 text-amber-400 mt-1 flex-shrink-0" />
+                    <AlertTriangle className="h-10 w-10 text-amber-400 mt-1 shrink-0" />
                   ) : (
-                    <ShieldCheck className="h-10 w-10 text-emerald-400 mt-1 flex-shrink-0" />
+                    <ShieldCheck className="h-10 w-10 text-emerald-400 mt-1 shrink-0" />
                   )}
 
                   <div>
@@ -797,7 +796,7 @@ const TripPlanner = () => {
                     
                     {tripPlan.nightDriving && (
                       <div className="mt-2.5 p-2 bg-slate-950/50 rounded-lg border border-slate-800 text-[10px] text-amber-300 flex items-center gap-1.5 max-w-lg">
-                        <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                         <span><b>Night Driving Mode Active:</b> Reduced lighting requires defensive driving, low headlight adjustment, and extra awareness.</span>
                       </div>
                     )}
@@ -805,7 +804,7 @@ const TripPlanner = () => {
                 </div>
 
                 <div className="self-end md:self-auto flex flex-col items-end">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Guardian Drive Score</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">DriveSentra Safety Score</span>
                   <span className={`text-3xl font-black mt-1 font-mono ${
                     tripPlan.riskLevel === 'High' ? 'text-rose-400' : tripPlan.riskLevel === 'Medium' ? 'text-amber-400' : 'text-emerald-400'
                   }`}>
@@ -817,7 +816,7 @@ const TripPlanner = () => {
           ) : (
             // Placeholder Card
             <div className="bg-slate-900/30 border border-dashed border-slate-800 rounded-2xl p-12 text-center flex flex-col items-center justify-center min-h-[480px]">
-              <div className="h-16 w-16 rounded-full bg-slate-900/80 border border-slate-850 flex items-center justify-center mb-4 text-purple-400">
+              <div className="h-16 w-16 rounded-full bg-slate-900/80 border border-slate-800 flex items-center justify-center mb-4 text-purple-400">
                 <Navigation className="h-8 w-8 animate-pulse" />
               </div>
               <h3 className="text-white font-bold text-lg">No Active Trip Plan Generated</h3>

@@ -30,8 +30,8 @@ router.post('/alert', async (req, res) => {
     console.log(`[Twilio SMS] Dispatching to: ${emergencyContactPhone}`);
     console.log(`Content: "CRITICAL ALERT: Driver ${driverName} requires immediate assistance. Reason: ${alertReason}. Location: ${currentLocation}."`);
     console.log(`[Nodemailer Email] Sending to: ${emergencyContactEmail}`);
-    console.log(`Subject: [GUARDIANDRIVE AI] EMERGENCY ALERT - ${driverName}`);
-    console.log(`Body:\nHello ${emergencyContactName},\nThis is an automated emergency message from GuardianDrive AI.\n\nDriver: ${driverName}\nLocation: ${currentLocation}\nReason: ${alertReason}\n\nPlease check on them immediately.\n`);
+    console.log(`Subject: [DRIVESENTRA AI] EMERGENCY ALERT - ${driverName}`);
+    console.log(`Body:\nHello ${emergencyContactName},\nThis is an automated emergency message from DriveSentra AI.\n\nDriver: ${driverName}\nLocation: ${currentLocation}\nReason: ${alertReason}\n\nPlease check on them immediately.\n`);
     console.log(`===================================================================\n`);
 
     const alertData = {

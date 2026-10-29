@@ -1,7 +1,7 @@
 const BASE_URL = 'http://localhost:5000/api/trip';
 
 async function testTripPlanner() {
-  console.log('=== GuardianDrive AI Trip Planner Integration Test ===\n');
+  console.log('=== DriveSentra AI Trip Planner Integration Test ===\n');
 
   try {
     // 1. EV Trip with enough battery (Bangalore to Mysore, range 340km, battery 85% -> 289km range)

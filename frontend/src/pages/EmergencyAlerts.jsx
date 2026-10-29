@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   ShieldAlert, 
@@ -11,8 +11,7 @@ import {
   FileText, 
   CheckCircle2, 
   AlertCircle,
-  Clock,
-  ExternalLink
+  Clock
 } from 'lucide-react';
 import { sendEmergencyAlert, getEmergencyHistory } from '../services/api';
 import { playAlertSound } from '../utils/audio';
@@ -20,7 +19,7 @@ import { playAlertSound } from '../utils/audio';
 const EmergencyAlerts = () => {
   const routeLocation = useLocation();
 
-  // Load from localStorage or use defaults
+  // Load from localStorage or use defaults (pre-filling reason from navigation state if present)
   const [formData, setFormData] = useState({
     userId: localStorage.getItem('gd_userId') || 'driver_001',
     driverName: localStorage.getItem('gd_driverName') || 'John Doe',
@@ -28,7 +27,7 @@ const EmergencyAlerts = () => {
     emergencyContactPhone: localStorage.getItem('gd_contactPhone') || '+1 (555) 019-9000',
     emergencyContactEmail: localStorage.getItem('gd_contactEmail') || 'sarah.doe@example.com',
     currentLocation: localStorage.getItem('gd_location') || 'National Highway 275, Mandya Bypass',
-    alertReason: ''
+    alertReason: routeLocation.state?.reason || ''
   });
 
   const [history, setHistory] = useState([]);
@@ -36,16 +35,6 @@ const EmergencyAlerts = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
-
-  // If redirected from fatigue monitoring with a predefined reason
-  useEffect(() => {
-    if (routeLocation.state && routeLocation.state.reason) {
-      setFormData(prev => ({
-        ...prev,
-        alertReason: routeLocation.state.reason
-      }));
-    }
-  }, [routeLocation.state]);
 
   // Save basic fields to localStorage on change so they persist across reloads
   const handleChange = (e) => {
@@ -63,7 +52,7 @@ const EmergencyAlerts = () => {
   };
 
   // Fetch alert dispatch history
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       const res = await getEmergencyHistory(formData.userId);
       if (res.success) {
@@ -74,11 +63,14 @@ const EmergencyAlerts = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [formData.userId]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [formData.userId]);
+    const timer = setTimeout(() => {
+      fetchHistory();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchHistory]);
 
   // Form submission: Dispatch alert
   const handleSubmit = async (e) => {
@@ -145,7 +137,7 @@ const EmergencyAlerts = () => {
                     onChange={handleChange}
                     required
                     placeholder="e.g. driver_001"
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all font-mono"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all font-mono"
                   />
                 </div>
               </div>
@@ -162,7 +154,7 @@ const EmergencyAlerts = () => {
                     onChange={handleChange}
                     required
                     placeholder="e.g. John Doe"
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -179,7 +171,7 @@ const EmergencyAlerts = () => {
                     onChange={handleChange}
                     required
                     placeholder="e.g. Sarah Doe"
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -196,7 +188,7 @@ const EmergencyAlerts = () => {
                     onChange={handleChange}
                     required
                     placeholder="e.g. +1 555-0199"
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -213,7 +205,7 @@ const EmergencyAlerts = () => {
                     onChange={handleChange}
                     required
                     placeholder="e.g. contact@domain.com"
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -230,7 +222,7 @@ const EmergencyAlerts = () => {
                     onChange={handleChange}
                     required
                     placeholder="e.g. Highway GPS coordinates or town name"
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -247,14 +239,14 @@ const EmergencyAlerts = () => {
                     required
                     rows="3"
                     placeholder="Describe the nature of the emergency (e.g. Critical fatigue levels detected, driver non-responsive)."
-                    className="w-full bg-slate-950/70 border border-slate-850 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-650 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all resize-none"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder-slate-500 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 outline-none transition-all resize-none"
                   ></textarea>
                 </div>
               </div>
             </div>
 
             {/* Form actions */}
-            <div className="flex items-center justify-between border-t border-slate-850 pt-4">
+            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
               <span className="text-[10px] text-slate-500 font-mono">
                 Mock Twilio SMS + Nodemailer Email active
               </span>
@@ -305,10 +297,10 @@ const EmergencyAlerts = () => {
                   <p className="text-xs">Accessing history records...</p>
                 </div>
               ) : history.length === 0 ? (
-                <div className="text-center py-12 text-slate-500 border border-dashed border-slate-850 rounded-xl bg-slate-950/20">
+                <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/20">
                   <Clock className="h-10 w-10 text-slate-700 mx-auto mb-3" />
                   <h4 className="font-bold text-slate-400 text-sm">No Incidents Logged</h4>
-                  <p className="text-xs text-slate-650 max-w-[200px] mx-auto mt-1">
+                  <p className="text-xs text-slate-500 max-w-[200px] mx-auto mt-1">
                     No emergency signals have been dispatched from this terminal.
                   </p>
                 </div>
@@ -350,7 +342,7 @@ const EmergencyAlerts = () => {
               )}
             </div>
 
-            <div className="border-t border-slate-850 pt-4 mt-6 text-[10px] text-slate-500 font-mono leading-relaxed space-y-1">
+            <div className="border-t border-slate-800 pt-4 mt-6 text-[10px] text-slate-500 font-mono leading-relaxed space-y-1">
               <span className="text-red-400 font-bold block uppercase tracking-wide">SOS BROADCAST SYSTEM</span>
               <p>
                 Alerts are logged to database logs and immediately print simulated Twilio SMTP / SMS payloads to the server log console.

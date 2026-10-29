@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   History, 
   TrendingUp, 
   AlertTriangle, 
   ShieldAlert, 
   Clock, 
-  Eye, 
-  Coffee, 
   Frown,
   Activity,
   Database
@@ -18,54 +16,56 @@ const DriverLogs = () => {
   const [loading, setLoading] = useState(true);
   const userId = localStorage.getItem('gd_userId') || 'driver_001';
 
-  // Analytics states
-  const [analytics, setAnalytics] = useState({
-    highestFatigue: 0,
-    totalWarnings: 0,
-    totalCriticals: 0,
-    lastMonitoringTime: 'N/A'
-  });
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const res = await getDriverLogs(userId);
       if (res.success) {
         setLogs(res.data);
-        calculateAnalytics(res.data);
       }
     } catch (err) {
       console.error('Error fetching driver fatigue logs:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchLogs();
   }, [userId]);
 
-  const calculateAnalytics = (data) => {
-    if (!data || data.length === 0) return;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchLogs();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchLogs]);
+
+  // Derived analytics state
+  const analytics = useMemo(() => {
+    if (!logs || logs.length === 0) {
+      return {
+        highestFatigue: 0,
+        totalWarnings: 0,
+        totalCriticals: 0,
+        lastMonitoringTime: 'N/A'
+      };
+    }
 
     let highest = 0;
     let warnings = 0;
     let criticals = 0;
 
-    data.forEach((log) => {
+    logs.forEach((log) => {
       if (log.fatigueLevel > highest) highest = log.fatigueLevel;
       if (log.driverState === 'Warning') warnings++;
       if (log.driverState === 'Critical') criticals++;
     });
 
-    const lastTime = new Date(data[0].timestamp).toLocaleString();
+    const lastTime = new Date(logs[0].timestamp).toLocaleString();
 
-    setAnalytics({
+    return {
       highestFatigue: highest,
       totalWarnings: warnings,
       totalCriticals: criticals,
       lastMonitoringTime: lastTime
-    });
-  };
+    };
+  }, [logs]);
 
   // Helper styles for states
   const getStateBadge = (state) => {
@@ -167,7 +167,7 @@ const DriverLogs = () => {
 
       {/* Main Logs Table Card */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-850 flex items-center justify-between">
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <h3 className="text-white font-bold text-base flex items-center gap-2">
             <History className="h-5 w-5 text-purple-400" />
             Driver Status Database
@@ -195,7 +195,7 @@ const DriverLogs = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-850 text-slate-500 font-bold uppercase tracking-wider bg-slate-950/20">
+                <tr className="border-b border-slate-800 text-slate-500 font-bold uppercase tracking-wider bg-slate-950/20">
                   <th className="p-4 pl-6">Timestamp</th>
                   <th className="p-4">Fatigue Index</th>
                   <th className="p-4">Driver State</th>
@@ -205,7 +205,7 @@ const DriverLogs = () => {
                   <th className="p-4 pr-6 text-center">Break Needed</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850">
+              <tbody className="divide-y divide-slate-800">
                 {logs.map((log) => (
                   <tr key={log._id} className="hover:bg-slate-900/35 transition-colors group">
                     <td className="p-4 pl-6 text-slate-400 font-mono">
@@ -214,7 +214,7 @@ const DriverLogs = () => {
                     <td className="p-4 font-mono font-bold text-white">
                       <div className="flex items-center gap-3">
                         <span className="w-8 shrink-0">{log.fatigueLevel.toFixed(0)}%</span>
-                        <div className="h-1.5 w-16 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+                        <div className="h-1.5 w-16 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                           <div 
                             className={`h-full rounded-full ${
                               log.fatigueLevel < 40 ? 'bg-emerald-500' :
@@ -244,7 +244,7 @@ const DriverLogs = () => {
                     </td>
                     <td className="p-4 pr-6 text-center">
                       <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] ${
-                        log.breakNeeded ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-slate-950 text-slate-600 border border-slate-850'
+                        log.breakNeeded ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'bg-slate-950 text-slate-600 border border-slate-800'
                       }`}>
                         {log.breakNeeded ? 'YES' : 'NO'}
                       </span>

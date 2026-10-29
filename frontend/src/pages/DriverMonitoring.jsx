@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { 
@@ -9,8 +9,6 @@ import {
   ShieldAlert, 
   CheckCircle, 
   Coffee, 
-  Save, 
-  Sparkles, 
   AlertCircle,
   Database,
   ArrowRight,
@@ -38,8 +36,6 @@ const DriverMonitoring = () => {
 
   // Dynamic MediaPipe CV configuration and tracking
   const [cvMode, setCvMode] = useState('Simulation'); // 'MediaPipe' or 'Simulation'
-  const [scriptsLoaded, setScriptsLoaded] = useState(false);
-  const [manualDistraction, setManualDistraction] = useState(false);
   const [isYawning, setIsYawning] = useState(false);
 
   const canvasRef = useRef(null);
@@ -53,37 +49,41 @@ const DriverMonitoring = () => {
   const userId = localStorage.getItem('gd_userId') || 'driver_001';
 
   // State calculations based on fatigueLevel
-  let driverState = 'Safe';
-  let breakNeeded = 'No';
-  let stateColor = 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10';
-  let stateGlow = 'shadow-emerald-500/10';
-  let gaugeColor = 'from-emerald-500 to-teal-500';
-
-  if (fatigueLevel < 40) {
-    driverState = 'Safe';
-    breakNeeded = 'No';
-    stateColor = 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10';
-    stateGlow = 'shadow-emerald-500/10 border-emerald-500/20';
-    gaugeColor = 'from-emerald-500 to-teal-500';
-  } else if (fatigueLevel >= 40 && fatigueLevel <= 70) {
-    driverState = 'Drowsy';
-    breakNeeded = 'No';
-    stateColor = 'text-amber-400 border-amber-500/20 bg-amber-500/10';
-    stateGlow = 'shadow-amber-500/10 border-amber-500/20';
-    gaugeColor = 'from-amber-500 to-yellow-500';
-  } else if (fatigueLevel > 70 && fatigueLevel <= 80) {
-    driverState = 'Warning';
-    breakNeeded = 'Yes';
-    stateColor = 'text-orange-400 border-orange-500/20 bg-orange-500/10';
-    stateGlow = 'shadow-orange-500/10 border-orange-500/20';
-    gaugeColor = 'from-orange-500 to-amber-600';
-  } else {
-    driverState = 'Critical';
-    breakNeeded = 'Yes';
-    stateColor = 'text-red-400 border-red-500/20 bg-red-500/10';
-    stateGlow = 'shadow-red-500/10 border-red-500/20';
-    gaugeColor = 'from-red-500 to-rose-600';
-  }
+  const { driverState, breakNeeded, stateColor, stateGlow, gaugeColor } = useMemo(() => {
+    if (fatigueLevel < 40) {
+      return {
+        driverState: 'Safe',
+        breakNeeded: 'No',
+        stateColor: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10',
+        stateGlow: 'shadow-emerald-500/10 border-emerald-500/20',
+        gaugeColor: 'from-emerald-500 to-teal-500'
+      };
+    } else if (fatigueLevel <= 70) {
+      return {
+        driverState: 'Drowsy',
+        breakNeeded: 'No',
+        stateColor: 'text-amber-400 border-amber-500/20 bg-amber-500/10',
+        stateGlow: 'shadow-amber-500/10 border-amber-500/20',
+        gaugeColor: 'from-amber-500 to-yellow-500'
+      };
+    } else if (fatigueLevel <= 80) {
+      return {
+        driverState: 'Warning',
+        breakNeeded: 'Yes',
+        stateColor: 'text-orange-400 border-orange-500/20 bg-orange-500/10',
+        stateGlow: 'shadow-orange-500/10 border-orange-500/20',
+        gaugeColor: 'from-orange-500 to-amber-600'
+      };
+    } else {
+      return {
+        driverState: 'Critical',
+        breakNeeded: 'Yes',
+        stateColor: 'text-red-400 border-red-500/20 bg-red-500/10',
+        stateGlow: 'shadow-red-500/10 border-red-500/20',
+        gaugeColor: 'from-red-500 to-rose-600'
+      };
+    }
+  }, [fatigueLevel]);
 
   // Load MediaPipe Face Mesh script dynamically
   const loadFaceMeshScript = () => {
@@ -101,16 +101,16 @@ const DriverMonitoring = () => {
     });
   };
 
-  const throttledPlayAlertSound = (type) => {
+  const throttledPlayAlertSound = useCallback((type) => {
     const now = Date.now();
     const minInterval = type === 'distracted' ? 3500 : 5000;
     if (now - lastAlertTimeRef.current[type] > minInterval) {
       playAlertSound(type);
       lastAlertTimeRef.current[type] = now;
     }
-  };
+  }, []);
 
-  const drawFaceMesh = (ctx, landmarks, isGazeDistracted, mar) => {
+  const drawFaceMesh = useCallback((ctx, landmarks, isGazeDistracted, mar) => {
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.45)'; // Sleek light purple
     ctx.lineWidth = 1;
 
@@ -180,9 +180,9 @@ const DriverMonitoring = () => {
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
     ctx.stroke();
-  };
+  }, []);
 
-  const onResults = (results) => {
+  const onResults = useCallback((results) => {
     if (!canvasRef.current || !webcamRef.current || !webcamRef.current.video) return;
 
     const video = webcamRef.current.video;
@@ -293,11 +293,11 @@ const DriverMonitoring = () => {
       ctx.font = 'bold 12px monospace';
       ctx.fillText('FACIAL LANDMARKS DISRUPTED', 15, 25);
     }
-  };
+  }, [drawFaceMesh, throttledPlayAlertSound]);
 
-  const startAnalysisLoop = () => {
+  const startAnalysisLoop = useCallback(() => {
     const processFrame = async () => {
-      if (monitoringActive && faceMeshRef.current && webcamRef.current && webcamRef.current.video) {
+      if (faceMeshRef.current && webcamRef.current && webcamRef.current.video) {
         const video = webcamRef.current.video;
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
           try {
@@ -307,12 +307,10 @@ const DriverMonitoring = () => {
           }
         }
       }
-      if (monitoringActive) {
-        animationFrameIdRef.current = requestAnimationFrame(processFrame);
-      }
+      animationFrameIdRef.current = requestAnimationFrame(processFrame);
     };
     animationFrameIdRef.current = requestAnimationFrame(processFrame);
-  };
+  }, []);
 
   // MediaPipe lifecycle setup
   useEffect(() => {
@@ -322,7 +320,6 @@ const DriverMonitoring = () => {
       loadFaceMeshScript()
         .then(() => {
           if (!active) return;
-          setScriptsLoaded(true);
           setCvMode('MediaPipe');
 
           const faceMesh = new window.FaceMesh({
@@ -357,7 +354,6 @@ const DriverMonitoring = () => {
         faceMeshRef.current.close();
         faceMeshRef.current = null;
       }
-      setCvMode('Simulation');
     }
 
     return () => {
@@ -369,7 +365,7 @@ const DriverMonitoring = () => {
         faceMeshRef.current.close();
       }
     };
-  }, [monitoringActive]);
+  }, [monitoringActive, onResults, startAnalysisLoop]);
 
   // Simulation Fallback Interval (only processes when cvMode is Simulation)
   useEffect(() => {
@@ -420,18 +416,21 @@ const DriverMonitoring = () => {
 
   // Handle warning and emergency modals based on fatigueLevel
   useEffect(() => {
-    if (fatigueLevel > 70 && fatigueLevel <= 80) {
-      setShowWarningModal(true);
-      setShowEmergencyModal(false);
-      playAlertSound('warning');
-    } else if (fatigueLevel > 80) {
-      setShowEmergencyModal(true);
-      setShowWarningModal(false);
-      playAlertSound('critical');
-    } else {
-      setShowWarningModal(false);
-      setShowEmergencyModal(false);
-    }
+    const timer = setTimeout(() => {
+      if (fatigueLevel > 70 && fatigueLevel <= 80) {
+        setShowWarningModal(true);
+        setShowEmergencyModal(false);
+        playAlertSound('warning');
+      } else if (fatigueLevel > 80) {
+        setShowEmergencyModal(true);
+        setShowWarningModal(false);
+        playAlertSound('critical');
+      } else {
+        setShowWarningModal(false);
+        setShowEmergencyModal(false);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fatigueLevel]);
 
   // Action: Toggle webcam monitoring state
@@ -441,9 +440,9 @@ const DriverMonitoring = () => {
 
   const handleStopMonitoring = () => {
     setMonitoringActive(false);
+    setCvMode('Simulation');
     setEyeClosureStatus('Open');
     setDistractionStatus('Focused');
-    setManualDistraction(false);
     manualDistractionRef.current = false;
   };
 
@@ -473,10 +472,8 @@ const DriverMonitoring = () => {
     if (newStatus === 'Distracted') {
       playAlertSound('distracted');
       manualDistractionRef.current = true;
-      setManualDistraction(true);
     } else {
       manualDistractionRef.current = false;
-      setManualDistraction(false);
     }
   };
 
@@ -609,7 +606,7 @@ const DriverMonitoring = () => {
             )}
 
             {monitoringActive && (
-              <div className="absolute bottom-4 right-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-850 z-20 text-[10px] text-slate-400 font-mono">
+              <div className="absolute bottom-4 right-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 z-20 text-[10px] text-slate-400 font-mono">
                 FPS: 30 | Res: 640x480
               </div>
             )}
@@ -670,7 +667,7 @@ const DriverMonitoring = () => {
             <button
               onClick={handleSaveStatus}
               disabled={savingStatus || !monitoringActive}
-              className="px-5 py-3 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-850 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ml-auto cursor-pointer"
+              className="px-5 py-3 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ml-auto cursor-pointer"
             >
               <Database className="h-4.5 w-4.5" />
               {savingStatus ? 'Saving...' : 'Save Driver Status'}
@@ -708,7 +705,7 @@ const DriverMonitoring = () => {
                 <span className="text-slate-400 uppercase tracking-wide">FATIGUE INDEX</span>
                 <span className="text-white font-bold">{fatigueLevel.toFixed(0)}%</span>
               </div>
-              <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-850 p-0.5">
+              <div className="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
                 <div
                   className={`h-full rounded-full bg-gradient-to-r ${gaugeColor} transition-all duration-500`}
                   style={{ width: `${fatigueLevel}%` }}
@@ -719,28 +716,28 @@ const DriverMonitoring = () => {
             {/* Stats Metrics Details Grid */}
             <div className="grid grid-cols-2 gap-4 mt-6">
               
-              <div className="bg-slate-950/50 border border-slate-850 p-4 rounded-xl">
+              <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl">
                 <span className="block text-[10px] text-slate-500 uppercase font-bold tracking-wide">DRIVER STATE</span>
                 <span className={`block text-lg font-black mt-1 uppercase ${stateColor.split(' ')[0]}`}>
                   {driverState}
                 </span>
               </div>
 
-              <div className="bg-slate-950/50 border border-slate-850 p-4 rounded-xl">
+              <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl">
                 <span className="block text-[10px] text-slate-500 uppercase font-bold tracking-wide">BREAK REQUIRED</span>
                 <span className={`block text-lg font-black mt-1 ${breakNeeded === 'Yes' ? 'text-orange-400' : 'text-emerald-400'}`}>
                   {breakNeeded}
                 </span>
               </div>
 
-              <div className="bg-slate-950/50 border border-slate-850 p-4 rounded-xl">
+              <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl">
                 <span className="block text-[10px] text-slate-500 uppercase font-bold tracking-wide">EYE STATUS</span>
                 <span className={`block text-lg font-black text-white mt-1 uppercase ${eyeClosureStatus === 'Closed' ? 'text-amber-400 animate-pulse' : ''}`}>
                   {eyeClosureStatus}
                 </span>
               </div>
 
-              <div className="bg-slate-950/50 border border-slate-850 p-4 rounded-xl">
+              <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl">
                 <span className="block text-[10px] text-slate-500 uppercase font-bold tracking-wide">BLINK COUNT</span>
                 <span className="block text-lg font-black text-white mt-1">
                   {blinkCount}
@@ -749,7 +746,7 @@ const DriverMonitoring = () => {
             </div>
 
             {/* Distraction Status */}
-            <div className="mt-4 bg-slate-950/50 border border-slate-850 p-4 rounded-xl flex items-center justify-between">
+            <div className="mt-4 bg-slate-950/50 border border-slate-800 p-4 rounded-xl flex items-center justify-between">
               <div>
                 <span className="block text-[10px] text-slate-500 uppercase font-bold tracking-wide">FOCUS ASSESSMENT</span>
                 <span className={`block text-base font-black mt-1 uppercase ${distractionStatus === 'Focused' ? 'text-emerald-400' : 'text-red-400 animate-pulse'}`}>
@@ -776,14 +773,14 @@ const DriverMonitoring = () => {
           )}
 
           {/* Computer Vision Architecture Roadmap Note */}
-          <div className="bg-slate-950 border border-slate-850 rounded-2xl p-5 text-xs text-slate-500 font-mono leading-relaxed space-y-2">
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 text-xs text-slate-500 font-mono leading-relaxed space-y-2">
             <span className="text-purple-400 font-bold uppercase tracking-wider text-[10px] block">
               Developer CV Integration Panel
             </span>
             <p>
               Eye blinks and state details are currently driven by a dynamic rule-based evaluator.
             </p>
-            <div className="text-[10px] text-slate-650 space-y-1">
+            <div className="text-[10px] text-slate-500 space-y-1">
               <p>// TODO: Hooking up MediaPipe Face Mesh & OpenCV</p>
               <p>// 1. Capture frames from webcamRef.current.getScreenshot()</p>
               <p>// 2. Calculate Eye Aspect Ratio (EAR) with landmarks 33, 160, 158, 133, 153, 144</p>
