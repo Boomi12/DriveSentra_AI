@@ -121,8 +121,8 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-10 animate-fade-in">
-      <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-md border border-purple-500/20 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+    <div className="min-h-[80vh] w-full flex items-center justify-center py-6 sm:py-10 px-3 sm:px-4 animate-fade-in">
+      <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-md border border-purple-500/20 rounded-2xl p-5 sm:p-8 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -ml-10 -mt-10 pointer-events-none"></div>
         <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mb-10 pointer-events-none"></div>
 

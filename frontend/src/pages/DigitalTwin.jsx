@@ -180,7 +180,7 @@ const DigitalTwin = () => {
         </div>
         <button
           onClick={() => navigate('/agents')}
-          className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-lg text-sm transition-all flex items-center gap-2 cursor-pointer shadow-lg hover:shadow-purple-500/5"
+          className="px-4 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-purple-500/5 min-h-[44px]"
         >
           Open AI Agent Panel
           <Activity className="h-4 w-4" />
@@ -413,13 +413,13 @@ const DigitalTwin = () => {
           Trigger simulated environmental and vehicle risks to force instantaneous re-routing and agent alerts.
         </p>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2.5 sm:gap-3">
           {scenarios.map((scen, idx) => (
             <button
               key={idx}
               disabled={updating}
               onClick={() => handleSimulateUpdate(scen)}
-              className={`px-4 py-3 border rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50 ${
+              className={`flex-1 sm:flex-initial min-w-[140px] px-3.5 sm:px-4 py-2.5 sm:py-3 border rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 min-h-[44px] ${
                 activeScenario === scen.name
                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/50 shadow-md shadow-purple-500/5'
                   : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
@@ -428,7 +428,7 @@ const DigitalTwin = () => {
               {updating && activeScenario === scen.name ? (
                 <Loader2 className="animate-spin h-3.5 w-3.5 text-purple-400" />
               ) : (
-                <span className={`h-2 w-2 rounded-full ${
+                <span className={`h-2 w-2 rounded-full shrink-0 ${
                   scen.journeyTwin.riskLevel === 'critical' 
                     ? 'bg-red-500 animate-pulse' 
                     : scen.journeyTwin.riskLevel === 'medium'
@@ -436,7 +436,7 @@ const DigitalTwin = () => {
                       : 'bg-emerald-500'
                 }`}></span>
               )}
-              {scen.name}
+              <span className="truncate">{scen.name}</span>
             </button>
           ))}
         </div>

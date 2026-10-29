@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge, Navigation, Eye, ShieldAlert, History, SlidersHorizontal } from 'lucide-react';
+import { Compass, Calendar, Activity, BrainCircuit, Shield, Menu, X, LayoutDashboard, Sliders, LogOut, Gauge, Eye, ShieldAlert, History, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import JourneyCompanion from './pages/JourneyCompanion';
 import TripPlanner from './pages/TripPlanner';
@@ -28,6 +28,9 @@ const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isTabletCollapsed, setIsTabletCollapsed] = useState(() => {
+    return typeof window !== 'undefined' && window.innerWidth >= 768 && window.innerWidth < 1024;
+  });
   const [activeTripId, setActiveTripId] = useState(() => localStorage.getItem('gd_tripId'));
   const [user, setUser] = useState(() => {
     try {
@@ -44,6 +47,25 @@ const DashboardLayout = ({ children }) => {
   useEffect(() => {
     isEditingNameRef.current = isEditingName;
   }, [isEditingName]);
+
+  // Handle escape key to close mobile drawer
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMobileMenuOpen(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [location.pathname]);
 
   // Poll localStorage occasionally to show active trip status and auth state in the navbar/sidebar
   const checkState = () => {
@@ -155,7 +177,6 @@ const DashboardLayout = ({ children }) => {
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Vehicle Setup', path: '/vehicle-setup', icon: Sliders },
     { name: 'Journey Companion', path: '/journey', icon: Compass },
-    { name: 'Trip Planner', path: '/trip-planner', icon: Navigation },
     { name: 'Itinerary Planner', path: '/itinerary', icon: Calendar },
     { name: 'Digital Twin Studio', path: '/digital-twin', icon: Activity },
     { name: 'AI Agent Panel', path: '/agents', icon: BrainCircuit },
@@ -171,44 +192,68 @@ const DashboardLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col text-slate-100 font-sans antialiased">
       {/* Mobile Top Navbar */}
-      <header className="lg:hidden h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-6 sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <Shield className="h-6 w-6 text-purple-500 fill-purple-500/20" />
-          <span className="font-extrabold text-white text-lg tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
-            DRIVESENTRA AI
-          </span>
+      <header className="md:hidden h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-40">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center shadow-md shadow-purple-500/20">
+            <Shield className="h-4 w-4 text-white" />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-extrabold text-white text-base tracking-wider leading-none bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
+              DRIVESENTRA AI
+            </span>
+            <span className="text-[9px] text-purple-400 font-bold tracking-widest mt-0.5">
+              MOBILITY COMPANION
+            </span>
+          </div>
         </div>
         <button
           onClick={toggleMobileMenu}
-          className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+          aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer rounded-lg hover:bg-slate-800/60"
         >
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
       </header>
 
-      <div className="flex-1 flex relative">
-        {/* Left Sidebar (Desktop only) */}
-        <aside className="hidden lg:flex w-72 bg-slate-900/60 border-r border-slate-800/80 flex-col justify-between sticky top-0 h-screen p-6 z-30 backdrop-blur-md">
-          <div className="space-y-6">
-            {/* Logo */}
-            <div className="flex items-center gap-2.5 px-2">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <Shield className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-black text-white text-base tracking-widest leading-none">
-                  DRIVESENTRA
-                </span>
-                <span className="text-[10px] text-purple-400 font-bold tracking-widest mt-0.5">
-                  MOBILITY COMPANION
-                </span>
-              </div>
+      <div className="flex-1 flex relative min-h-0">
+        {/* Left Sidebar (Tablet icon-rail or Desktop full sidebar) */}
+        <aside 
+          className={`hidden md:flex flex-col justify-between sticky top-0 h-screen border-r border-slate-800/80 bg-slate-900/60 backdrop-blur-md z-30 transition-all duration-300 ease-in-out thin-scrollbar ${
+            isTabletCollapsed ? 'w-20 p-2.5' : 'w-64 p-3.5 lg:p-4'
+          }`}
+          aria-label="Sidebar navigation"
+        >
+          <div className="space-y-3 overflow-y-auto overflow-x-hidden pr-0.5 thin-scrollbar">
+            {/* Header / Logo + Collapse Toggle */}
+            <div className={`flex items-center ${isTabletCollapsed ? 'justify-center flex-col gap-2' : 'justify-between px-1'}`}>
+              <Link to="/dashboard" className="flex items-center gap-2 group">
+                <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20 shrink-0 group-hover:scale-105 transition-transform">
+                  <Shield className="h-4.5 w-4.5 text-white" />
+                </div>
+                {!isTabletCollapsed && (
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-black text-white text-sm tracking-widest leading-none truncate">
+                      DRIVESENTRA
+                    </span>
+                    <span className="text-[9px] text-purple-400 font-bold tracking-widest mt-0.5 truncate">
+                      MOBILITY COMPANION
+                    </span>
+                  </div>
+                )}
+              </Link>
+              
+              <button
+                onClick={() => setIsTabletCollapsed(!isTabletCollapsed)}
+                aria-label={isTabletCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                className="h-7 w-7 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors shrink-0 cursor-pointer"
+                title={isTabletCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {isTabletCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+              </button>
             </div>
 
-
-
             {/* Navigation links */}
-            <nav className="space-y-1">
+            <nav className="space-y-0.5" aria-label="Main menu">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
@@ -217,86 +262,124 @@ const DashboardLayout = ({ children }) => {
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group ${
+                    title={isTabletCollapsed ? item.name : undefined}
+                    className={`flex items-center rounded-lg text-xs font-semibold transition-all group ${
+                      isTabletCollapsed 
+                        ? 'justify-center p-2 min-h-[38px]' 
+                        : 'gap-2.5 px-2.5 py-1.5 min-h-[34px]'
+                    } ${
                       isActive
                         ? 'bg-purple-600/10 text-purple-300 border border-purple-500/30 shadow-md shadow-purple-500/5'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent'
                     }`}
                   >
-                    <Icon className={`h-4 w-4 transition-colors ${
+                    <Icon className={`h-4 w-4 shrink-0 transition-colors ${
                       isActive ? 'text-purple-400' : 'text-slate-400 group-hover:text-white'
                     }`} />
-                    {item.name}
+                    {!isTabletCollapsed && (
+                      <span className="truncate">{item.name}</span>
+                    )}
                   </Link>
                 );
               })}
             </nav>
           </div>
 
-          {/* Active Trip Info and Credits */}
-          <div className="space-y-4">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold transition-all text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent cursor-pointer"
-            >
-              <LogOut className="h-4 w-4 text-red-400" />
-              Sign Out
-            </button>
+          {/* User profile, Active Trip Info and Sign Out (Ultra-compact) */}
+          <div className="space-y-1 pt-1.5 border-t border-slate-800/80">
+            {activeTripId && (
+              <div className={`bg-slate-950/70 border border-purple-500/20 rounded-md ${
+                isTabletCollapsed ? 'p-1 text-center' : 'px-2 py-0.5 flex items-center justify-between'
+              }`}>
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="text-[8px] text-purple-300 font-bold uppercase tracking-wider truncate">
+                    {isTabletCollapsed ? 'TRIP' : 'ACTIVE TRIP'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-mono font-medium truncate ml-1">
+                  {isTabletCollapsed ? `#${activeTripId.slice(0, 4)}` : activeTripId}
+                </span>
+              </div>
+            )}
 
             {user && (
               <div 
                 onClick={!isEditingName ? startEditing : undefined}
-                className={`px-3.5 py-2.5 bg-slate-950/40 border border-slate-800/80 rounded-xl flex items-center gap-3 ${!isEditingName ? 'cursor-pointer hover:bg-slate-900/30 hover:border-slate-700/60 transition-all' : ''}`}
+                className={`bg-slate-950/40 border border-slate-800/80 rounded-md flex items-center ${
+                  isTabletCollapsed ? 'p-1 justify-center' : 'px-2 py-1 gap-2'
+                } ${!isEditingName ? 'cursor-pointer hover:bg-slate-900/50 hover:border-slate-700/60 transition-all' : ''}`}
+                title={isTabletCollapsed ? `${user.name} (${user.email})` : undefined}
               >
-                <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-300 text-xs shrink-0 select-none">
+                <div className="h-6 w-6 rounded-full bg-slate-800 border border-slate-700/60 flex items-center justify-center font-bold text-slate-300 text-[10px] shrink-0 select-none">
                   {user.name ? user.name[0].toUpperCase() : 'U'}
                 </div>
-                <div className="min-w-0 flex-1">
-                  {isEditingName ? (
-                    <input
-                      type="text"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={handleInputKeyDown}
-                      onBlur={handleSaveName}
-                      className="w-full bg-slate-900/80 border border-purple-500/30 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-purple-500 font-bold"
-                      autoFocus
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-between group/name">
-                      <h4 className="text-xs font-bold text-slate-200 truncate">{user.name}</h4>
-                      <span className="text-[9px] text-slate-500 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1 select-none">Edit</span>
-                    </div>
-                  )}
-                  <p className="text-[10px] text-slate-500 truncate mt-0.5 select-none">{user.email}</p>
-                </div>
+                {!isTabletCollapsed && (
+                  <div className="min-w-0 flex-1 leading-none">
+                    {isEditingName ? (
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        onKeyDown={handleInputKeyDown}
+                        onBlur={handleSaveName}
+                        className="w-full bg-slate-900 border border-purple-500/40 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none focus:border-purple-500 font-medium"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between group/name">
+                        <h4 className="text-[11px] font-semibold text-slate-200 truncate">{user.name}</h4>
+                        <span className="text-[8px] text-slate-500 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1 select-none">Edit</span>
+                      </div>
+                    )}
+                    <p className="text-[9px] text-slate-500 truncate select-none mt-0.5">{user.email}</p>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="text-[10px] text-slate-500 text-center font-medium">
-              DriveSentra AI © 2026
-            </div>
+            <button
+              onClick={handleLogout}
+              title={isTabletCollapsed ? "Sign Out" : undefined}
+              className={`flex items-center w-full rounded-md text-[11px] font-medium transition-all text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent cursor-pointer ${
+                isTabletCollapsed ? 'justify-center p-1.5 min-h-[30px]' : 'gap-2 px-2 py-1'
+              }`}
+            >
+              <LogOut className="h-3 w-3 shrink-0" />
+              {!isTabletCollapsed && <span>Sign Out</span>}
+            </button>
+
+            {!isTabletCollapsed && (
+              <div className="text-[8px] text-slate-600 text-center font-normal pt-0.5">
+                DriveSentra AI © 2026
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-30 flex">
+          <div className="md:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true">
             {/* Backdrop */}
             <div
-              className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm"
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity"
               onClick={toggleMobileMenu}
+              aria-hidden="true"
             ></div>
 
             {/* Menu */}
-            <nav className="relative w-64 max-w-xs bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-6 z-45 animate-fade-in h-full">
-              <div className="space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-                  <span className="font-extrabold text-white text-sm tracking-wider">NAVIGATION</span>
+            <nav className="relative w-72 max-w-[85vw] bg-slate-900 border-r border-slate-800 flex flex-col justify-between p-5 z-50 animate-fade-in h-full overflow-y-auto shadow-2xl thin-scrollbar">
+              <div className="space-y-5">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-purple-400" />
+                    <span className="font-extrabold text-white text-sm tracking-wider">DRIVESENTRA AI</span>
+                  </div>
                   <button
                     onClick={toggleMobileMenu}
-                    className="text-slate-400 hover:text-white"
+                    aria-label="Close menu"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/60"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -305,9 +388,9 @@ const DashboardLayout = ({ children }) => {
                 {user && (
                   <div 
                     onClick={!isEditingName ? startEditing : undefined}
-                    className={`px-3.5 py-2.5 bg-slate-950/40 border border-slate-800/80 rounded-xl flex items-center gap-3 ${!isEditingName ? 'cursor-pointer hover:bg-slate-900/30 hover:border-slate-700/60 transition-all' : ''}`}
+                    className={`px-3 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center gap-3 ${!isEditingName ? 'cursor-pointer hover:bg-slate-900/50' : ''}`}
                   >
-                    <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-300 text-xs shrink-0 select-none">
+                    <div className="h-9 w-9 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-300 text-xs shrink-0 select-none">
                       {user.name ? user.name[0].toUpperCase() : 'U'}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -318,22 +401,22 @@ const DashboardLayout = ({ children }) => {
                           onChange={(e) => setNewName(e.target.value)}
                           onKeyDown={handleInputKeyDown}
                           onBlur={handleSaveName}
-                          className="w-full bg-slate-900/80 border border-purple-500/30 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-purple-500 font-bold"
+                          className="w-full bg-slate-900 border border-purple-500 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none focus:border-purple-500 font-bold"
                           autoFocus
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <div className="flex items-center justify-between group/name">
                           <h4 className="text-xs font-bold text-slate-200 truncate">{user.name}</h4>
-                          <span className="text-[9px] text-slate-500 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1 select-none">Edit</span>
+                          <span className="text-[10px] text-purple-400 ml-1">Edit</span>
                         </div>
                       )}
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5 select-none">{user.email}</p>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">{user.email}</p>
                     </div>
                   </div>
                 )}
 
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {menuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path;
@@ -343,44 +426,46 @@ const DashboardLayout = ({ children }) => {
                         key={item.path}
                         to={item.path}
                         onClick={toggleMobileMenu}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold min-h-[44px] transition-all ${
                           isActive
-                            ? 'bg-purple-600/10 text-purple-300 border border-purple-500/20'
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                            ? 'bg-purple-600/15 text-purple-300 border border-purple-500/30'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                         }`}
                       >
-                        <Icon className="h-4 w-4" />
-                        {item.name}
+                        <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-purple-400' : 'text-slate-400'}`} />
+                        <span className="truncate">{item.name}</span>
                       </Link>
                     );
                   })}
-
-                  <button
-                    onClick={() => {
-                      toggleMobileMenu();
-                      handleLogout();
-                    }}
-                    className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold transition-all text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                  </button>
                 </div>
               </div>
 
-              {activeTripId && (
-                <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-center">
-                  <span className="text-[9px] text-slate-500 font-bold uppercase block">ACTIVE MONITORING</span>
-                  <span className="text-xs text-emerald-400 font-mono font-semibold">{activeTripId}</span>
-                </div>
-              )}
+              <div className="pt-2.5 mt-2.5 border-t border-slate-800 space-y-2">
+                {activeTripId && (
+                  <div className="px-2.5 py-1 bg-slate-950/80 border border-purple-500/20 rounded-lg flex items-center justify-between">
+                    <span className="text-[8px] text-purple-400 font-bold uppercase tracking-wider">ACTIVE TRIP</span>
+                    <span className="text-[11px] text-emerald-400 font-mono font-semibold truncate">{activeTripId}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    toggleMobileMenu();
+                    handleLogout();
+                  }}
+                  className="flex items-center justify-center gap-2 w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 cursor-pointer min-h-[40px]"
+                >
+                  <LogOut className="h-3.5 w-3.5 shrink-0" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
             </nav>
           </div>
         )}
 
         {/* Main Content Area */}
         <main className="flex-1 min-w-0 flex flex-col bg-slate-950/40 relative">
-          <div className="p-6 md:p-8 lg:p-10 flex-1 overflow-y-auto w-full max-w-7xl mx-auto space-y-8">
+          <div className="p-3.5 sm:p-5 md:p-8 lg:p-10 flex-1 overflow-y-auto w-full max-w-7xl mx-auto space-y-6 sm:space-y-8 min-w-0">
             {children}
           </div>
         </main>

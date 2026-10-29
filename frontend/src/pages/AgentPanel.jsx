@@ -164,7 +164,7 @@ const AgentPanel = () => {
         </div>
         <button
           onClick={() => navigate('/digital-twin')}
-          className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg text-sm font-semibold transition-all flex items-center gap-2 shadow-lg hover:shadow-purple-500/20 cursor-pointer"
+          className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/20 cursor-pointer min-h-[44px]"
         >
           Simulate Twin Updates
           <Activity className="h-4 w-4" />
@@ -181,7 +181,7 @@ const AgentPanel = () => {
           return (
             <div
               key={agent.key}
-              className={`bg-slate-900/60 border rounded-2xl p-6 shadow-lg relative overflow-hidden flex flex-col justify-between min-h-[260px] hover:-translate-y-1 hover:bg-slate-900/80 transition-all ${agent.glow}`}
+              className={`bg-slate-900/60 border rounded-2xl p-5 sm:p-6 shadow-lg relative overflow-hidden flex flex-col justify-between min-h-[260px] hover:-translate-y-1 hover:bg-slate-900/80 transition-all ${agent.glow}`}
             >
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -219,7 +219,7 @@ const AgentPanel = () => {
       </div>
 
       {/* Log Console */}
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-xl font-mono text-xs">
+      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl font-mono text-xs">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4 text-slate-400">
           <span className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-purple-400" />
@@ -240,7 +240,7 @@ const AgentPanel = () => {
               if (log.includes('Warning') || log.includes('Caution') || log.includes('Alert')) color = 'text-amber-300';
               if (log.includes('Danger') || log.includes('Critical')) color = 'text-red-400';
               return (
-                <div key={i} className={color}>
+                <div key={i} className={`${color} break-words text-[11px] leading-relaxed`}>
                   {log}
                 </div>
               );

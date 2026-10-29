@@ -530,8 +530,8 @@ const DriverMonitoring = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Left Column: Webcam Screen Card (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col space-y-4">
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl relative min-h-[380px] flex items-center justify-center">
+        <div className="lg:col-span-7 flex flex-col space-y-4 min-w-0">
+          <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl relative aspect-[4/3] sm:aspect-video w-full max-h-[440px] flex items-center justify-center">
             
             {/* Scanline Overlay Effect when Active */}
             {monitoringActive && (
@@ -543,9 +543,9 @@ const DriverMonitoring = () => {
 
             {/* Distraction Warning Overlay */}
             {monitoringActive && distractionStatus === 'Distracted' && (
-              <div className="absolute inset-0 pointer-events-none z-20 border-4 border-red-500/60 rounded-2xl bg-red-950/15 animate-pulse flex items-center justify-center">
-                <div className="bg-red-950/90 text-red-400 border border-red-500/30 px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 shadow-2xl backdrop-blur-md animate-scale-up">
-                  <AlertTriangle className="h-4.5 w-4.5 text-red-500 animate-bounce" />
+              <div className="absolute inset-0 pointer-events-none z-20 border-4 border-red-500/60 rounded-2xl bg-red-950/15 animate-pulse flex items-center justify-center p-3">
+                <div className="bg-red-950/90 text-red-400 border border-red-500/30 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow-2xl backdrop-blur-md animate-scale-up text-center">
+                  <AlertTriangle className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-red-500 animate-bounce shrink-0" />
                   WARNING: KEEP EYES ON ROAD!
                 </div>
               </div>
@@ -553,9 +553,9 @@ const DriverMonitoring = () => {
 
             {/* Yawn Warning Overlay */}
             {monitoringActive && isYawning && (
-              <div className="absolute inset-0 pointer-events-none z-20 border-4 border-amber-500/60 rounded-2xl bg-amber-950/15 animate-pulse flex items-center justify-center">
-                <div className="bg-amber-950/90 text-amber-400 border border-amber-500/30 px-4 py-2 rounded-xl text-sm font-extrabold flex items-center gap-2 shadow-2xl backdrop-blur-md animate-scale-up">
-                  <Coffee className="h-4.5 w-4.5 text-amber-500 animate-bounce" />
+              <div className="absolute inset-0 pointer-events-none z-20 border-4 border-amber-500/60 rounded-2xl bg-amber-950/15 animate-pulse flex items-center justify-center p-3">
+                <div className="bg-amber-950/90 text-amber-400 border border-amber-500/30 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold flex items-center gap-2 shadow-2xl backdrop-blur-md animate-scale-up text-center">
+                  <Coffee className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-amber-500 animate-bounce shrink-0" />
                   YAWN DETECTED: DROWSY STATE
                 </div>
               </div>
@@ -563,7 +563,7 @@ const DriverMonitoring = () => {
 
             {/* Live Camera Stream or Camera Off Placeholder */}
             {monitoringActive ? (
-              <div className="relative w-full h-full min-h-[380px] max-h-[420px] flex items-center justify-center">
+              <div className="relative w-full h-full flex items-center justify-center">
                 <Webcam
                   audio={false}
                   ref={webcamRef}
@@ -576,12 +576,12 @@ const DriverMonitoring = () => {
                 />
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center text-slate-500 p-8 text-center space-y-4">
-                <div className="h-16 w-16 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 text-slate-600 shadow-inner">
-                  <CameraOff className="h-8 w-8" />
+              <div className="flex flex-col items-center justify-center text-slate-500 p-6 sm:p-8 text-center space-y-3 sm:space-y-4">
+                <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-slate-950 flex items-center justify-center border border-slate-800 text-slate-600 shadow-inner">
+                  <CameraOff className="h-7 w-7 sm:h-8 sm:w-8" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-400">Camera Feed Idle</h4>
+                  <h4 className="font-bold text-slate-400 text-sm sm:text-base">Camera Feed Idle</h4>
                   <p className="text-xs text-slate-500 max-w-xs mt-1">
                     Start monitoring to activate the camera lens and begin telemetry extraction.
                   </p>
@@ -591,85 +591,85 @@ const DriverMonitoring = () => {
 
             {/* Live Indicator Badges */}
             {monitoringActive && (
-              <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 animate-pulse">
+              <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex flex-col gap-1.5 sm:gap-2 z-20">
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 animate-pulse">
                   <span className="h-1.5 w-1.5 bg-emerald-400 rounded-full"></span>
                   LIVE CAMERA
                 </span>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border uppercase ${stateColor}`}>
+                <span className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest border uppercase ${stateColor}`}>
                   {driverState} STATE
                 </span>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border uppercase ${cvMode === 'MediaPipe' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
-                  CV: {cvMode} MODE
+                <span className={`px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest border uppercase ${cvMode === 'MediaPipe' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                  CV: {cvMode}
                 </span>
               </div>
             )}
 
             {monitoringActive && (
-              <div className="absolute bottom-4 right-4 bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 z-20 text-[10px] text-slate-400 font-mono">
-                FPS: 30 | Res: 640x480
+              <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-slate-800 z-20 text-[9px] sm:text-[10px] text-slate-400 font-mono">
+                FPS: 30 | 640x480
               </div>
             )}
           </div>
 
           {/* Control Action Buttons */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center sm:gap-4 gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full">
             {!monitoringActive ? (
               <button
                 onClick={handleStartMonitoring}
-                className="px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/20 active:scale-[0.98] cursor-pointer"
+                className="flex-1 min-w-[140px] px-4 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/20 active:scale-[0.98] cursor-pointer min-h-[44px]"
               >
-                <Camera className="h-4.5 w-4.5" />
+                <Camera className="h-4 w-4" />
                 Start Monitoring
               </button>
             ) : (
               <button
                 onClick={handleStopMonitoring}
-                className="px-5 py-3 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
+                className="flex-1 min-w-[140px] px-4 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer min-h-[44px]"
               >
-                <CameraOff className="h-4.5 w-4.5" />
+                <CameraOff className="h-4 w-4" />
                 Stop Monitoring
               </button>
             )}
 
             <button
               onClick={handleSimulateFatigue}
-              className="px-5 py-3 bg-slate-900 border border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-950/15 text-purple-300 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
+              className="flex-1 min-w-[140px] px-4 py-2.5 bg-slate-900 border border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-950/15 text-purple-300 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer min-h-[44px]"
             >
-              <TrendingUp className="h-4.5 w-4.5" />
+              <TrendingUp className="h-4 w-4" />
               Simulate Fatigue
             </button>
 
             <button
               onClick={handleSimulateDistraction}
-              className={`px-5 py-3 border rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer ${
+              className={`flex-1 min-w-[140px] px-4 py-2.5 border rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer min-h-[44px] ${
                 distractionStatus === 'Distracted'
                   ? 'bg-red-950/30 border-red-500/40 text-red-300 hover:border-red-500/60'
                   : 'bg-slate-900 border-blue-500/30 hover:border-blue-500/50 hover:bg-blue-950/15 text-blue-300'
               }`}
             >
-              <AlertCircle className="h-4.5 w-4.5" />
+              <AlertCircle className="h-4 w-4" />
               {distractionStatus === 'Distracted' ? 'Clear Distracted' : 'Simulate Distracted'}
             </button>
 
             <button
               onClick={handleSimulateYawn}
-              className={`px-5 py-3 border rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer ${
+              className={`flex-1 min-w-[140px] px-4 py-2.5 border rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer min-h-[44px] ${
                 isYawning
                   ? 'bg-amber-950/30 border-amber-500/40 text-amber-300 hover:border-amber-500/60'
                   : 'bg-slate-900 border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-950/10 text-amber-300'
               }`}
             >
-              <Coffee className="h-4.5 w-4.5" />
+              <Coffee className="h-4 w-4" />
               Simulate Yawn
             </button>
 
             <button
               onClick={handleSaveStatus}
               disabled={savingStatus || !monitoringActive}
-              className="px-5 py-3 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ml-auto cursor-pointer"
+              className="w-full sm:w-auto sm:ml-auto px-4 py-2.5 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
-              <Database className="h-4.5 w-4.5" />
+              <Database className="h-4 w-4" />
               {savingStatus ? 'Saving...' : 'Save Driver Status'}
             </button>
           </div>

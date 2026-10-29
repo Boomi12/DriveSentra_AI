@@ -97,7 +97,7 @@ const DriverLogs = () => {
         </div>
         <button
           onClick={fetchLogs}
-          className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300 rounded-lg text-xs font-semibold transition-all flex items-center gap-2"
+          className="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 min-h-[44px] cursor-pointer"
         >
           <Activity className="h-3.5 w-3.5" />
           Refresh Database
@@ -105,7 +105,7 @@ const DriverLogs = () => {
       </div>
 
       {/* Analytics Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         
         {/* Highest Fatigue */}
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 shadow-md flex items-center gap-4 relative overflow-hidden group">
@@ -167,7 +167,7 @@ const DriverLogs = () => {
 
       {/* Main Logs Table Card */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl shadow-xl overflow-hidden">
-        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-5 sm:p-6 border-b border-slate-800 flex items-center justify-between">
           <h3 className="text-white font-bold text-base flex items-center gap-2">
             <History className="h-5 w-5 text-purple-400" />
             Driver Status Database
@@ -184,7 +184,7 @@ const DriverLogs = () => {
             <p className="text-xs">Accessing driver database...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div className="text-center py-20 text-slate-500 max-w-sm mx-auto">
+          <div className="text-center py-20 text-slate-500 max-w-sm mx-auto p-4">
             <Frown className="h-12 w-12 text-slate-700 mx-auto mb-4" />
             <h4 className="font-bold text-slate-400">No Logs Found</h4>
             <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
@@ -193,7 +193,7 @@ const DriverLogs = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full min-w-[640px] text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-500 font-bold uppercase tracking-wider bg-slate-950/20">
                   <th className="p-4 pl-6">Timestamp</th>

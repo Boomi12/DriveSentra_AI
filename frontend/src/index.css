@@ -8,20 +8,74 @@
   }
 }
 
-/* Custom Webkit scrollbar for recommendations lists */
+/* Ultra-thin, nearly invisible custom scrollbar */
+.thin-scrollbar,
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.1) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar,
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
+  width: 2.5px;
+  height: 2.5px;
 }
+
+.thin-scrollbar::-webkit-scrollbar-track,
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.4);
-  border-radius: 4px;
+  background: transparent;
 }
+
+.thin-scrollbar::-webkit-scrollbar-thumb,
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.25);
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
 }
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover,
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.5);
+  background: rgba(168, 85, 247, 0.35);
+}
+
+/* Sidebar & Navigation Drawer ultra-thin scrollbar */
+aside,
+aside *,
+nav[role="dialog"],
+nav[role="dialog"] * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.1) transparent;
+}
+
+aside::-webkit-scrollbar,
+aside *::-webkit-scrollbar,
+nav[role="dialog"]::-webkit-scrollbar,
+nav[role="dialog"] *::-webkit-scrollbar {
+  width: 2.5px;
+  height: 2.5px;
+}
+
+aside::-webkit-scrollbar-track,
+aside *::-webkit-scrollbar-track,
+nav[role="dialog"]::-webkit-scrollbar-track,
+nav[role="dialog"] *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+aside::-webkit-scrollbar-thumb,
+aside *::-webkit-scrollbar-thumb,
+nav[role="dialog"]::-webkit-scrollbar-thumb,
+nav[role="dialog"] *::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+aside::-webkit-scrollbar-thumb:hover,
+aside *::-webkit-scrollbar-thumb:hover,
+nav[role="dialog"]::-webkit-scrollbar-thumb:hover,
+nav[role="dialog"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.35);
 }
 
 /* Futuristic slide and scale animations */

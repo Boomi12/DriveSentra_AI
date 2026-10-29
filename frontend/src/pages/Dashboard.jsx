@@ -294,16 +294,16 @@ const Dashboard = () => {
               Your digital routing companion is monitoring all drivetrain and attention telemetry.
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={() => navigate('/vehicle-setup')}
-              className="px-4 py-2.5 bg-slate-950 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer hover:bg-slate-900"
+              className="px-4 py-2.5 bg-slate-950 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer hover:bg-slate-900 min-h-[44px] flex items-center justify-center text-center"
             >
               Vehicle Parameters
             </button>
             <button
               onClick={handleEmergencyModeToggle}
-              className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+              className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer min-h-[44px] flex items-center justify-center text-center ${
                 emergencyMode
                   ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/35'
                   : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-md'
@@ -515,9 +515,9 @@ const Dashboard = () => {
       </div>
 
       {/* Quick Action Navigation Grid */}
-      <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 relative overflow-hidden">
+      <div className="bg-slate-900/40 border border-slate-800 rounded-3xl p-5 sm:p-6 relative overflow-hidden">
         <h3 className="text-base font-bold text-white mb-4">Quick Diagnostic Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
           {[
             {
               name: 'Plan Trip',

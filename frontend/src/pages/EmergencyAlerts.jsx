@@ -246,14 +246,14 @@ const EmergencyAlerts = () => {
             </div>
 
             {/* Form actions */}
-            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-              <span className="text-[10px] text-slate-500 font-mono">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-slate-800 pt-4">
+              <span className="text-[10px] text-slate-500 font-mono text-center sm:text-left">
                 Mock Twilio SMS + Nodemailer Email active
               </span>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-6 py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:from-red-800 disabled:to-rose-800 text-white rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg shadow-red-500/10 active:scale-[0.98] cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:from-red-800 disabled:to-rose-800 text-white rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-500/10 active:scale-[0.98] cursor-pointer min-h-[44px]"
               >
                 <Send className="h-4 w-4" />
                 {submitting ? 'Dispatching...' : 'Send Emergency Alert'}

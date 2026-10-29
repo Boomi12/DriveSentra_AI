@@ -447,8 +447,8 @@ const Simulator = () => {
         </div>
 
         {/* Live Status Indicator */}
-        <div className="flex items-center gap-3">
-          <div className="px-3.5 py-1.5 rounded-full border border-slate-800 bg-slate-900/60 flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <div className="px-3.5 py-1.5 rounded-full border border-slate-800 bg-slate-900/60 flex items-center gap-2 min-h-[40px]">
             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status:</span>
             <span className={`text-xs font-black uppercase flex items-center gap-1.5 ${
               status === 'completed' ? 'text-emerald-400' :
@@ -468,7 +468,7 @@ const Simulator = () => {
 
           <button
             onClick={handleReset}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer min-h-[40px]"
             title="Reset to nominal state and clear simulation records"
           >
             <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
@@ -503,7 +503,7 @@ const Simulator = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
           {SCENARIO_PRESETS.map((scenario) => {
             const Icon = scenario.icon;
             const isSelected = selectedScenarioKey === scenario.key;
@@ -829,11 +829,11 @@ const Simulator = () => {
                 <strong className="text-purple-300 font-mono">{tripId}</strong>
               </div>
 
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
                 {status === 'completed' || status === 'paused' ? (
                   <button
                     onClick={handleTogglePause}
-                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
                   >
                     {status === 'paused' ? <Play className="h-3.5 w-3.5 text-emerald-400" /> : <Pause className="h-3.5 w-3.5 text-amber-400" />}
                     {status === 'paused' ? 'Resume State' : 'Pause State'}
@@ -843,7 +843,7 @@ const Simulator = () => {
                 <button
                   onClick={handleRunScenario}
                   disabled={status === 'running'}
-                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
                 >
                   {status === 'running' ? (
                     <>
@@ -955,7 +955,7 @@ const Simulator = () => {
               Navigate to existing views to observe how simulated telemetry impacts real application state:
             </p>
 
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <Link
                 to="/dashboard"
                 className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-slate-300 hover:text-white transition-all group"

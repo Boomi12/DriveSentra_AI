@@ -1,6 +1,11 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MapPin, Compass, ArrowRight, Loader2, CalendarRange, Car, Plus, Trash2, Check, Search, PlusCircle, Sparkles, ShieldAlert, Info, RotateCcw, CheckCircle2, ChevronUp, ChevronDown, Pin, Clock, X, Lock } from 'lucide-react';
+import { useState, useEffect, useRef, Fragment, useCallback } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { 
+  MapPin, Compass, ArrowRight, Loader2, CalendarRange, Car, Plus, Trash2, Check, 
+  Search, PlusCircle, Sparkles, ShieldAlert, Info, RotateCcw, CheckCircle2, ChevronUp, 
+  ChevronDown, Pin, Clock, X, Lock, Battery, Fuel, Users, Save, 
+  AlertTriangle, Coffee, ShieldCheck, Shield, Activity
+} from 'lucide-react';
 import { 
   generateItinerary, 
   recommendPlaces, 
@@ -13,7 +18,11 @@ import {
   removeItineraryStop,
   reorderItineraryStops,
   updateStopDurationApi,
-  toggleStopPinApi
+  toggleStopPinApi,
+  planTrip,
+  saveTrip,
+  getTripHistory,
+  deleteTrip
 } from '../services/api';
 import { 
   getCurrentDate, 
@@ -486,9 +495,11 @@ const RecommendationTabList = ({
   );
 };
 
-const JourneyCompanion = () => {
+const JourneyCompanion = ({ isFromTripPlannerRoute = false }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = JSON.parse(localStorage.getItem('gd_user') || '{}');
+  const isTripPlannerUrl = isFromTripPlannerRoute || location.pathname === '/trip-planner';
   
   const [formData, setFormData] = useState(() => {
     const defaults = {
@@ -502,6 +513,8 @@ const JourneyCompanion = () => {
       startTime: getCurrentTimeRounded(),
       fuelOrBatteryLevel: 85,
       mileageOrRange: 340,
+      passengers: 1,
+      preference: 'Fastest',
       durationDays: 1,
       tripStyle: 'Balanced',
       interests: [],
@@ -528,11 +541,36 @@ const JourneyCompanion = () => {
       return null;
     }
   });
+  const [customizeVehicle, setCustomizeVehicle] = useState(false);
+
+  // Unique Trip Planner state (Team 2 capability preserved)
+  const [tripPlan, setTripPlan] = useState(() => {
+    try {
+      const savedPlan = localStorage.getItem('gd_tripPlan');
+      return savedPlan ? JSON.parse(savedPlan) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [tripHistory, setTripHistory] = useState([]);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Real-time trip validation (derived)
   const formErrors = (() => {
-    const startCheck = validateTripStart(formData.tripDate, formData.startTime);
     const errors = {};
+    if (!formData.source.trim()) {
+      errors.source = "Starting location is required.";
+    }
+    if (!formData.destination.trim()) {
+      errors.destination = "Destination is required.";
+    }
+    if (formData.source.trim() && formData.destination.trim() && 
+        formData.source.toLowerCase().trim() === formData.destination.toLowerCase().trim()) {
+      errors.destination = "Starting location and destination cannot be the same.";
+    }
+
+    const startCheck = validateTripStart(formData.tripDate, formData.startTime);
     if (!startCheck.valid) {
       if (startCheck.reason === 'PAST_DATE') {
         errors.tripDate = startCheck.message;
@@ -541,13 +579,17 @@ const JourneyCompanion = () => {
       }
     }
     
-    if (vehicle) {
-      if (formData.fuelOrBatteryLevel < 0 || formData.fuelOrBatteryLevel > 100) {
-        errors.fuelOrBatteryLevel = "Battery/Fuel level must be between 0% and 100%.";
-      }
-      if (formData.mileageOrRange < 50 || formData.mileageOrRange > 1500) {
-        errors.mileageOrRange = "Range must be between 50km and 1500km.";
-      }
+    const level = Number(formData.fuelOrBatteryLevel);
+    if (isNaN(level) || level < 1 || level > 100) {
+      errors.fuelOrBatteryLevel = "Battery/Fuel level must be between 1% and 100%.";
+    }
+    const range = Number(formData.mileageOrRange);
+    if (isNaN(range) || range <= 0) {
+      errors.mileageOrRange = "Range must be a positive number.";
+    }
+    const pass = Number(formData.passengers);
+    if (isNaN(pass) || pass < 1) {
+      errors.passengers = "Passengers must be at least 1.";
     }
     return errors;
   })();
@@ -564,7 +606,10 @@ const JourneyCompanion = () => {
       return null;
     }
   });
-  const [activeTab, setActiveTab] = useState('attractions');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (isTripPlannerUrl) return 'safety';
+    return 'attractions';
+  });
 
   // Autocomplete prediction states
   const [sourceInput, setSourceInput] = useState(formData.source);
@@ -604,6 +649,105 @@ const JourneyCompanion = () => {
       return null;
     }
   });
+
+  // Load Trip History on mount
+  const loadTripHistory = useCallback(async () => {
+    try {
+      const res = await getTripHistory();
+      if (res && res.success && Array.isArray(res.data)) {
+        setTripHistory(res.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load trip history:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadTripHistory();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadTripHistory]);
+
+  // Support query parameters navigation (/journey?source=... or /trip-planner?source=...)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const qSource = params.get('source');
+    const qDest = params.get('destination');
+    const qDate = params.get('date');
+    const qTime = params.get('time');
+    const qTab = params.get('tab');
+    if (qSource || qDest || qDate || qTime || qTab || (isTripPlannerUrl && !tripPlan)) {
+      const timer = setTimeout(() => {
+        if (qSource || qDest || qDate || qTime) {
+          setFormData(prev => ({
+            ...prev,
+            source: qSource || prev.source,
+            destination: qDest || prev.destination,
+            tripDate: qDate || prev.tripDate,
+            startTime: qTime || prev.startTime
+          }));
+          if (qSource) setSourceInput(qSource);
+          if (qDest) setDestInput(qDest);
+        }
+        if (qTab) {
+          setActiveTab(qTab);
+        } else if (isTripPlannerUrl && !tripPlan) {
+          setActiveTab('safety');
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [location.search, isTripPlannerUrl, tripPlan]);
+
+  const handleSaveTrip = async () => {
+    if (!tripPlan) return;
+    setSaveLoading(true);
+    setError(null);
+    try {
+      const res = await saveTrip(tripPlan);
+      if (res && res.success) {
+        setSaveSuccess(true);
+        loadTripHistory();
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      setError(err.error || err.message || 'Could not save trip to history.');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleDeleteHistoryTrip = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm("Are you sure you want to delete this trip from history?")) return;
+    try {
+      await deleteTrip(id);
+      loadTripHistory();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleLoadHistoryTrip = (trip) => {
+    setTripPlan(trip);
+    localStorage.setItem('gd_tripPlan', JSON.stringify(trip));
+    setFormData(prev => ({
+      ...prev,
+      source: trip.source,
+      destination: trip.destination,
+      vehicleType: trip.vehicleType,
+      fuelOrBatteryLevel: trip.fuelOrBatteryLevel,
+      mileageOrRange: trip.mileageOrRange,
+      tripDate: trip.tripDate,
+      startTime: trip.startTime,
+      passengers: trip.passengers || 1,
+      preference: trip.preference || 'Fastest'
+    }));
+    setSourceInput(trip.source);
+    setDestInput(trip.destination);
+    setActiveTab('safety');
+  };
 
   // Load Active Trip on mount
   useEffect(() => {
@@ -886,7 +1030,19 @@ const JourneyCompanion = () => {
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
       if (name === 'vehicleType') {
-        updated.mileageOrRange = value === 'EV' ? 340 : 580;
+        if (value === 'EV') {
+          updated.mileageOrRange = 340;
+          updated.fuelOrBatteryLevel = 85;
+        } else if (value === 'Petrol') {
+          updated.mileageOrRange = 580;
+          updated.fuelOrBatteryLevel = 70;
+        } else if (value === 'Diesel') {
+          updated.mileageOrRange = 720;
+          updated.fuelOrBatteryLevel = 60;
+        } else if (value === 'Hybrid') {
+          updated.mileageOrRange = 650;
+          updated.fuelOrBatteryLevel = 75;
+        }
       }
       return updated;
     });
@@ -926,17 +1082,41 @@ const JourneyCompanion = () => {
     setInfeasible([]);
     setInfeasibilityDetails(null);
     setRoundTripMetrics(null);
+    setTripPlan(null);
+    setSaveSuccess(false);
     localStorage.removeItem('gd_timeline');
     localStorage.removeItem('gd_recommendations');
     localStorage.removeItem('gd_tripId');
     localStorage.removeItem('gd_infeasible');
     localStorage.removeItem('gd_roundTripMetrics');
     localStorage.removeItem('gd_infeasibilityDetails');
+    localStorage.removeItem('gd_tripPlan');
 
     const generatedTripId = 'trip_' + Math.random().toString(36).substring(2, 9).toUpperCase();
     setTripId(generatedTripId);
 
     try {
+      // 0. Plan Trip & Safety Assessment (Team 2 Plan Trip)
+      try {
+        const planRes = await planTrip({
+          source: formData.source,
+          destination: formData.destination,
+          vehicleType: formData.vehicleType,
+          fuelOrBatteryLevel: Number(formData.fuelOrBatteryLevel),
+          mileageOrRange: Number(formData.mileageOrRange),
+          passengers: Number(formData.passengers || 1),
+          preference: formData.preference || 'Fastest',
+          tripDate: formData.tripDate,
+          startTime: formData.startTime
+        });
+        if (planRes && planRes.success && planRes.data) {
+          setTripPlan(planRes.data);
+          localStorage.setItem('gd_tripPlan', JSON.stringify(planRes.data));
+        }
+      } catch (planErr) {
+        console.warn('Trip safety analysis fallback:', planErr);
+      }
+
       // 1. Generate Itinerary (initializes the Digital Twin and Agent recommendations)
       const itinRes = await generateItinerary({
         ...formData,
@@ -1705,7 +1885,7 @@ const JourneyCompanion = () => {
                 <Loader2 className="animate-spin h-5 w-5 text-purple-500 mb-2" />
                 <span className="text-[10px] text-slate-500">Retrieving vehicle profile...</span>
               </div>
-            ) : vehicle ? (
+            ) : vehicle && !customizeVehicle ? (
               <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 mb-4 relative overflow-hidden">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2">
@@ -1721,12 +1901,12 @@ const JourneyCompanion = () => {
                   <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800">
                     <span className="text-slate-500 block text-[9px] font-semibold uppercase">Charge / Fuel</span>
                     <span className="text-slate-200 font-bold">
-                      {vehicle.type === 'EV' ? `${vehicle.batteryPercentage}%` : `${vehicle.fuelPercentage}%`}
+                      {formData.fuelOrBatteryLevel}%
                     </span>
                   </div>
                   <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800">
                     <span className="text-slate-500 block text-[9px] font-semibold uppercase">Current Range</span>
-                    <span className="text-slate-200 font-bold">{vehicle.range} km</span>
+                    <span className="text-slate-200 font-bold">{formData.mileageOrRange} km</span>
                   </div>
                   {vehicle.type !== 'EV' && (
                     <div className="bg-slate-900/50 p-2 rounded-lg border border-slate-800 col-span-2">
@@ -1736,28 +1916,97 @@ const JourneyCompanion = () => {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => navigate('/vehicle-setup')}
-                  className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/30 text-purple-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
-                >
-                  Edit Vehicle Profile
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCustomizeVehicle(true)}
+                    className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/30 text-purple-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
+                  >
+                    Adjust for Trip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/vehicle-setup')}
+                    className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/30 text-slate-400 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer text-center"
+                  >
+                    Profile
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="bg-rose-500/5 border border-rose-500/20 rounded-xl p-4 mb-4 text-center">
-                <ShieldAlert className="h-8 w-8 text-rose-400 mx-auto mb-2 animate-pulse" />
-                <h4 className="text-xs font-bold text-white mb-1">Vehicle Setup Required</h4>
-                <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
-                  Complete Vehicle Setup before planning a trip.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/vehicle-setup')}
-                  className="w-full py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-md"
-                >
-                  Go to Vehicle Setup
-                </button>
+              <div className="p-3.5 bg-slate-950/80 border border-purple-500/20 rounded-xl mb-4 space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Car className="h-3.5 w-3.5 text-purple-400" />
+                    Vehicle & Range Parameters
+                  </span>
+                  {vehicle && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          vehicleType: vehicle.type,
+                          fuelOrBatteryLevel: vehicle.type === 'EV' ? vehicle.batteryPercentage : vehicle.fuelPercentage,
+                          mileageOrRange: vehicle.range
+                        }));
+                        setCustomizeVehicle(false);
+                      }}
+                      className="text-[9px] text-purple-400 hover:text-purple-300 underline cursor-pointer"
+                    >
+                      Use Profile
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[9px] text-slate-400 uppercase font-semibold mb-1">Type</label>
+                    <select
+                      name="vehicleType"
+                      value={formData.vehicleType}
+                      onChange={handleChange}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white text-[10px] focus:outline-none"
+                    >
+                      <option value="EV">EV</option>
+                      <option value="Petrol">Petrol</option>
+                      <option value="Diesel">Diesel</option>
+                      <option value="Hybrid">Hybrid</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] text-slate-400 uppercase font-semibold mb-1">
+                      {formData.vehicleType === 'EV' ? 'Battery %' : 'Fuel %'}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      name="fuelOrBatteryLevel"
+                      value={formData.fuelOrBatteryLevel}
+                      onChange={handleChange}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white text-[10px] font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] text-slate-400 uppercase font-semibold mb-1">
+                      Range (km)
+                    </label>
+                    <input
+                      type="number"
+                      min={10}
+                      max={1500}
+                      name="mileageOrRange"
+                      value={formData.mileageOrRange}
+                      onChange={handleChange}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white text-[10px] font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+                {!vehicle && (
+                  <p className="text-[9px] text-slate-500">
+                    * Quick setup. You can also save a permanent vehicle profile in <Link to="/vehicle-setup" className="text-purple-400 underline">Vehicle Setup</Link>.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1860,6 +2109,43 @@ const JourneyCompanion = () => {
                     <option value="One Way">One Way</option>
                     <option value="Round Trip">Round Trip</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Route Preference & Passengers (Team 2 Capabilities) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                    Route Preference
+                  </label>
+                  <select
+                    name="preference"
+                    value={formData.preference || 'Fastest'}
+                    onChange={handleChange}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-white text-xs focus:outline-none focus:border-purple-500/80 transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="Fastest">Fastest</option>
+                    <option value="Eco-Friendly">Eco-Friendly</option>
+                    <option value="Scenic">Scenic</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1">
+                    <Users className="h-3 w-3 text-purple-400" />
+                    Passengers
+                  </label>
+                  <input
+                    type="number"
+                    name="passengers"
+                    min={1}
+                    max={12}
+                    value={formData.passengers || 1}
+                    onChange={handleChange}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-3 text-white text-xs focus:outline-none focus:border-purple-500/80 font-mono"
+                  />
+                  {formErrors.passengers && (
+                    <span className="text-[9px] text-red-400 mt-1 block font-medium">{formErrors.passengers}</span>
+                  )}
                 </div>
               </div>
 
@@ -2060,9 +2346,9 @@ const JourneyCompanion = () => {
 
               <button
                 type="submit"
-                disabled={!isFormValid || loading || !vehicle}
+                disabled={!isFormValid || loading}
                 className={`w-full text-white rounded-lg py-2.5 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 mt-3 shadow-md ${
-                  (!isFormValid || !vehicle)
+                  (!isFormValid)
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50 border border-slate-700'
                     : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 cursor-pointer hover:shadow-purple-500/15'
                 }`}
@@ -2070,11 +2356,11 @@ const JourneyCompanion = () => {
                 {loading ? (
                   <>
                     <Loader2 className="animate-spin h-3.5 w-3.5" />
-                    Synchronizing Twin...
+                    Calculating Safety & Generating Itinerary...
                   </>
                 ) : (
                   <>
-                    Generate Itinerary
+                    Generate Itinerary & Safety Plan
                     <ArrowRight className="h-3.5 w-3.5" />
                   </>
                 )}
@@ -2409,22 +2695,67 @@ const JourneyCompanion = () => {
           )}
         </div>
 
-        {/* Right Column: Search + Recommendations Tabs */}
+        {/* Right Column: Unified Safety Intelligence + Recommendations Tabs */}
         <div className="lg:col-span-8 flex flex-col min-h-[480px]">
-          {recommendations ? (
+          {(recommendations || tripPlan || tripHistory.length > 0) ? (
             <div className="flex flex-col h-full bg-slate-900/40 border border-slate-800 rounded-2xl p-6 shadow-xl animate-scale-up">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-4 mb-4 gap-4">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Sparkles className="h-4.5 w-4.5 text-yellow-400" />
-                  Recommendations for {recommendations.destination}
-                </h3>
-                <button
-                  onClick={() => navigate('/itinerary')}
-                  className="px-3.5 py-1.5 bg-purple-900/40 hover:bg-purple-800/50 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 hover:translate-x-1 cursor-pointer"
-                >
-                  View Itinerary
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Sparkles className="h-4.5 w-4.5 text-yellow-400" />
+                    {recommendations?.destination 
+                      ? `Trip Intelligence: ${recommendations.destination}` 
+                      : tripPlan?.destination 
+                      ? `Journey Plan: ${tripPlan.destination}` 
+                      : 'Trip Intelligence & Safety Planning'}
+                  </h3>
+                  {tripPlan && (
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {tripPlan.source} → {tripPlan.destination} ({tripPlan.distanceKm} km • {tripPlan.durationHours} hrs • {tripPlan.preference} route)
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {tripPlan && (
+                    <button
+                      type="button"
+                      onClick={handleSaveTrip}
+                      disabled={saveLoading || saveSuccess}
+                      className={`px-3 py-1.5 border rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        saveSuccess
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 cursor-not-allowed'
+                          : 'bg-purple-600/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50'
+                      }`}
+                    >
+                      {saveLoading ? (
+                        <>
+                          <Loader2 className="animate-spin h-3.5 w-3.5" />
+                          Saving...
+                        </>
+                      ) : saveSuccess ? (
+                        <>
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          Trip Saved
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-3.5 w-3.5" />
+                          Save Journey
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/itinerary')}
+                    className="px-3.5 py-1.5 bg-purple-900/40 hover:bg-purple-800/50 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 hover:translate-x-1 cursor-pointer"
+                  >
+                    View Full Itinerary
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
 
               {/* Weather Forecast Widget */}
@@ -2449,8 +2780,8 @@ const JourneyCompanion = () => {
                 </div>
               )}
 
-              {/* Search Bar */}
-              {['attractions', 'restaurants', 'restStops', 'lodging'].includes(activeTab) && (
+              {/* Search Bar (Only shown for place recommendation tabs when places exist) */}
+              {recommendations && ['attractions', 'restaurants', 'restStops', 'lodging'].includes(activeTab) && (
                 <div className="relative mb-4">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 h-4 w-4" />
                   <input
@@ -2463,141 +2794,564 @@ const JourneyCompanion = () => {
                 </div>
               )}
 
-              {/* Tabs */}
+              {/* Unified Tabs Bar */}
               <div className="flex flex-wrap gap-1.5 mb-4 border-b border-slate-800 pb-2">
                 {[
+                  { 
+                    id: 'safety', 
+                    label: 'Safety & Range', 
+                    badge: tripPlan?.riskLevel ? `${tripPlan.riskLevel} Risk` : null,
+                    badgeColor: tripPlan?.riskLevel === 'High' 
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' 
+                      : tripPlan?.riskLevel === 'Medium' 
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' 
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  },
                   { id: 'attractions', label: 'Attractions' },
                   { id: 'restaurants', label: 'Restaurants' },
                   { id: 'restStops', label: 'Rest Stops' },
                   { id: 'lodging', label: 'Lodging (Halts)' },
                   { id: 'refuel', label: formData.vehicleType === 'EV' ? 'EV Charging' : 'Fuel Stations' },
-                  { id: 'custom', label: '+ Add Custom Stop' }
+                  { id: 'custom', label: '+ Add Stop' },
+                  { id: 'history', label: `Saved Trips (${tripHistory.length})` }
                 ].map((tab) => (
                   <button
                     key={tab.id}
+                    type="button"
                     onClick={() => {
                       setActiveTab(tab.id);
                       setSearchQuery(''); // reset search
                     }}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                       activeTab === tab.id
                         ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                     }`}
                   >
-                    {tab.label}
+                    <span>{tab.label}</span>
+                    {tab.badge && (
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded border font-mono ${tab.badgeColor}`}>
+                        {tab.badge}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
 
               {/* Tab Content */}
-              <div className="flex-1 overflow-y-auto max-h-[350px] space-y-3.5 pr-1.5 custom-scrollbar">
-                {/* ATTRACTIONS TAB */}
-                <RecommendationTabList
-                  tabKey="attractions"
-                  activeTab={activeTab}
-                  items={recommendations.attractions}
-                  type="attraction"
-                  emptyMessage="No matching attractions found."
-                  expanded={expandedState.attractions}
-                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, attractions: !prev.attractions }))}
-                  selectedTimes={selectedTimes}
-                  defaultTime="04:00 PM"
-                  timeOptions={timeOptions}
-                  onSelectPlace={setSelectedPlace}
-                  onCardTimeChange={handleCardTimeChange}
-                  isPlaceInTimeline={isPlaceInTimeline}
-                  onRemovePlace={handleRemovePlace}
-                  checkCardFeasibility={checkCardFeasibility}
-                  onAddPlace={handleAddRecommendation}
-                  searchQuery={searchQuery}
-                />
+              <div className="flex-1 overflow-y-auto max-h-[500px] space-y-4 pr-1.5 custom-scrollbar">
+                {/* 1. SAFETY & RANGE ANALYSIS TAB (Preserving Trip Planner Capabilities) */}
+                {activeTab === 'safety' && (
+                  tripPlan ? (
+                    <div className="space-y-4 animate-scale-up">
+                      {/* Status Header */}
+                      <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-lg">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-extrabold text-blue-400 font-mono bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/15">
+                              ROUTE PREFERENCE: {tripPlan.preference ? tripPlan.preference.toUpperCase() : 'FASTEST'}
+                            </span>
+                            <span className={`text-[10px] font-extrabold font-mono px-2 py-0.5 rounded border ${
+                              tripPlan.riskLevel === 'High' 
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                : tripPlan.riskLevel === 'Medium'
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            }`}>
+                              RISK LEVEL: {tripPlan.riskLevel ? tripPlan.riskLevel.toUpperCase() : 'LOW'}
+                            </span>
+                            {tripPlan.nightDriving && (
+                              <span className="text-[10px] font-extrabold font-mono px-2 py-0.5 rounded border bg-purple-500/10 text-purple-300 border-purple-500/20">
+                                NIGHT TRANSIT
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-base font-bold text-white mt-2 flex items-center gap-2">
+                            {tripPlan.source} <ArrowRight className="h-4 w-4 text-purple-400 shrink-0" /> {tripPlan.destination}
+                          </h4>
+                          <p className="text-slate-400 text-xs mt-0.5">
+                            Scheduled: {tripPlan.tripDate} at {tripPlan.startTime} • {tripPlan.passengers || 1} Passenger(s) • {tripPlan.vehicleType}
+                          </p>
+                        </div>
+                      </div>
 
-                {/* RESTAURANTS TAB */}
-                <RecommendationTabList
-                  tabKey="restaurants"
-                  activeTab={activeTab}
-                  items={recommendations.restaurants}
-                  type="restaurant"
-                  emptyMessage="No matching restaurants found."
-                  expanded={expandedState.restaurants}
-                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, restaurants: !prev.restaurants }))}
-                  selectedTimes={selectedTimes}
-                  defaultTime="01:30 PM"
-                  timeOptions={timeOptions}
-                  onSelectPlace={setSelectedPlace}
-                  onCardTimeChange={handleCardTimeChange}
-                  isPlaceInTimeline={isPlaceInTimeline}
-                  onRemovePlace={handleRemovePlace}
-                  checkCardFeasibility={checkCardFeasibility}
-                  onAddPlace={handleAddRecommendation}
-                  searchQuery={searchQuery}
-                />
+                      {/* 4 Main Metrics Display */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {/* Distance Card */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 shadow-md">
+                          <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Estimated Distance</span>
+                          <div className="flex items-baseline gap-1 mt-1.5">
+                            <span className="text-2xl font-black text-white">{tripPlan.distanceKm}</span>
+                            <span className="text-xs text-slate-400 font-bold">km</span>
+                          </div>
+                          <span className="block text-[9px] text-slate-400 mt-1 font-medium">DriveSentra Map Router</span>
+                        </div>
 
-                {/* REST STOPS TAB */}
-                <RecommendationTabList
-                  tabKey="restStops"
-                  activeTab={activeTab}
-                  items={recommendations.restStops}
-                  type="restStop"
-                  emptyMessage="No matching rest stops found."
-                  expanded={expandedState.restStops}
-                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, restStops: !prev.restStops }))}
-                  selectedTimes={selectedTimes}
-                  defaultTime="11:30 AM"
-                  timeOptions={timeOptions}
-                  onSelectPlace={setSelectedPlace}
-                  onCardTimeChange={handleCardTimeChange}
-                  isPlaceInTimeline={isPlaceInTimeline}
-                  onRemovePlace={handleRemovePlace}
-                  checkCardFeasibility={checkCardFeasibility}
-                  onAddPlace={handleAddRecommendation}
-                  searchQuery={searchQuery}
-                />
+                        {/* Duration Card */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 shadow-md">
+                          <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Estimated Time</span>
+                          <div className="flex items-baseline gap-1 mt-1.5">
+                            <span className="text-2xl font-black text-white">{tripPlan.durationHours}</span>
+                            <span className="text-xs text-slate-400 font-bold">hrs</span>
+                          </div>
+                          <span className="block text-[9px] text-slate-400 mt-1 font-medium">Average highway speed</span>
+                        </div>
 
-                {/* LODGING TAB */}
-                <RecommendationTabList
-                  tabKey="lodging"
-                  activeTab={activeTab}
-                  items={recommendations.haltingPlaces}
-                  type="lodging"
-                  emptyMessage="No matching lodging options found."
-                  expanded={expandedState.lodging}
-                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, lodging: !prev.lodging }))}
-                  selectedTimes={selectedTimes}
-                  defaultTime="09:00 PM"
-                  timeOptions={timeOptions}
-                  onSelectPlace={setSelectedPlace}
-                  onCardTimeChange={handleCardTimeChange}
-                  isPlaceInTimeline={isPlaceInTimeline}
-                  onRemovePlace={handleRemovePlace}
-                  checkCardFeasibility={checkCardFeasibility}
-                  onAddPlace={handleAddRecommendation}
-                  searchQuery={searchQuery}
-                />
+                        {/* Initial Range Card */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 shadow-md">
+                          <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Initial Range</span>
+                          <div className="flex items-baseline gap-1 mt-1.5">
+                            <span className="text-2xl font-black text-white">{tripPlan.calculatedRange}</span>
+                            <span className="text-xs text-slate-400 font-bold">km</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {tripPlan.vehicleType === 'EV' ? (
+                              <Battery className="h-3 w-3 text-purple-400" />
+                            ) : (
+                              <Fuel className="h-3 w-3 text-blue-400" />
+                            )}
+                            <span className="text-[10px] text-slate-400 font-semibold">{tripPlan.fuelOrBatteryLevel}% battery/fuel</span>
+                          </div>
+                        </div>
 
-                {/* REFUEL TAB */}
-                <RecommendationTabList
-                  tabKey="refuel"
-                  activeTab={activeTab}
-                  items={recommendations.fuelChargingStops}
-                  type="refuel"
-                  emptyMessage="No matching stations found."
-                  expanded={expandedState.refuel}
-                  onToggleExpand={() => setExpandedState(prev => ({ ...prev, refuel: !prev.refuel }))}
-                  selectedTimes={selectedTimes}
-                  defaultTime="10:00 AM"
-                  timeOptions={timeOptions}
-                  onSelectPlace={setSelectedPlace}
-                  onCardTimeChange={handleCardTimeChange}
-                  isPlaceInTimeline={isPlaceInTimeline}
-                  onRemovePlace={handleRemovePlace}
-                  checkCardFeasibility={checkCardFeasibility}
-                  onAddPlace={handleAddRecommendation}
-                  searchQuery={searchQuery}
-                />
+                        {/* Remaining Card */}
+                        <div className={`bg-slate-950/80 border rounded-xl p-3.5 shadow-md ${
+                          tripPlan.remainingBatteryOrFuel < 0 
+                            ? 'border-rose-500/30 bg-rose-950/10' 
+                            : 'border-slate-800'
+                        }`}>
+                          <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Remaining at Dest.</span>
+                          <div className="flex items-baseline gap-1 mt-1.5">
+                            <span className={`text-2xl font-black ${
+                              tripPlan.remainingBatteryOrFuel < 0 
+                                ? 'text-rose-400' 
+                                : tripPlan.remainingBatteryOrFuel < 15
+                                ? 'text-amber-400'
+                                : 'text-emerald-400'
+                            }`}>
+                              {tripPlan.remainingBatteryOrFuel < 0 ? '0' : tripPlan.remainingBatteryOrFuel}
+                            </span>
+                            <span className="text-xs text-slate-400 font-bold">%</span>
+                          </div>
+                          <span className="block text-[9px] text-slate-400 mt-1 font-medium">
+                            {tripPlan.remainingBatteryOrFuel < 0 
+                              ? 'Out of energy' 
+                              : `${Math.round((tripPlan.remainingBatteryOrFuel / 100) * (tripPlan.mileageOrRange || 300))} km left`}
+                          </span>
+                        </div>
+                      </div>
 
-                {/* CUSTOM ADD FORM TAB */}
+                      {/* Stop Suggestions & Rest Breaks */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Charging/Refueling Stops */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                              <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
+                                {tripPlan.vehicleType === 'EV' ? (
+                                  <>
+                                    <Battery className="h-4 w-4 text-purple-400" />
+                                    EV Charging Recommendation
+                                  </>
+                                ) : (
+                                  <>
+                                    <Fuel className="h-4 w-4 text-blue-400" />
+                                    Refueling Stop Suggestions
+                                  </>
+                                )}
+                              </h5>
+                              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                tripPlan.isRangeEnough ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400 border border-rose-500/15'
+                              }`}>
+                                {tripPlan.isRangeEnough ? 'Range Sufficient' : 'Refuel Required'}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 space-y-2.5">
+                              {(!tripPlan.recommendedStops || tripPlan.recommendedStops.length === 0) ? (
+                                <div className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg flex items-center gap-2">
+                                  <Info className="h-4 w-4 text-emerald-400 shrink-0" />
+                                  <p className="text-[11px] text-slate-400 leading-normal">
+                                    Your starting vehicle range of <b>{tripPlan.calculatedRange} km</b> is fully sufficient to cover the <b>{tripPlan.distanceKm} km</b> trip safely. No mid-route energy stops required.
+                                  </p>
+                                </div>
+                              ) : (
+                                tripPlan.recommendedStops.map((stop, index) => (
+                                  <div key={index} className="p-3 bg-slate-900/60 border border-slate-800 rounded-lg relative overflow-hidden group hover:border-purple-500/30 transition-all">
+                                    <div className="flex items-center justify-between">
+                                      <h6 className="font-bold text-white text-xs">{stop.name}</h6>
+                                      <span className="text-[9px] font-black text-purple-300 font-mono bg-purple-500/10 px-1.5 py-0.5 rounded">
+                                        Stop at {stop.distanceKm} km
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-400 text-[10px] mt-1">{stop.description}</p>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 p-2.5 bg-slate-900/30 border border-dashed border-slate-800 rounded-lg">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider">
+                              {tripPlan.vehicleType === 'EV' ? 'Battery Degradation Predictor' : 'Mileage Efficiency Factors'}
+                            </span>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {tripPlan.vehicleType === 'EV' 
+                                ? 'Estimated efficiency: 16.5 kWh/100km. Degradation index: Low (0.02% health impact).' 
+                                : 'Estimated mileage: 15.2 km/l. Fuel grade recommendation: Premium octane for optimal highway performance.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Rest Breaks */}
+                        <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
+                              <h5 className="font-bold text-white text-xs flex items-center gap-1.5">
+                                <Coffee className="h-4 w-4 text-amber-400" />
+                                Suggested Rest Breaks
+                              </h5>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                Limit: 2.5 hrs continuous
+                              </span>
+                            </div>
+
+                            <div className="mt-3 space-y-2.5">
+                              {(!tripPlan.restBreaks || tripPlan.restBreaks.length === 0) ? (
+                                <div className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg flex items-center gap-2">
+                                  <Info className="h-4 w-4 text-emerald-400 shrink-0" />
+                                  <p className="text-[11px] text-slate-400 leading-normal">
+                                    Trip duration is approximately <b>{tripPlan.durationHours} hours</b>. Since it is below the 2.5-hour continuous driving limit, intermediate rest stops are optional.
+                                  </p>
+                                </div>
+                              ) : (
+                                tripPlan.restBreaks.map((item, index) => (
+                                  <div key={index} className="p-3 bg-slate-900/60 border border-slate-800 rounded-lg relative overflow-hidden group hover:border-amber-500/30 transition-all">
+                                    <div className="flex items-center justify-between">
+                                      <h6 className="font-bold text-white text-xs">{item.name}</h6>
+                                      <span className="text-[9px] font-black text-amber-300 font-mono bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                        Break at {item.time}
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-400 text-[10px] mt-1">{item.reason}</p>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 p-2.5 bg-slate-900/30 border border-dashed border-slate-800 rounded-lg flex items-start gap-2">
+                            <Shield className="h-4 w-4 text-purple-400 mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase block tracking-wider">DriveSentra Journey Advisory</span>
+                              <p className="text-[10px] text-slate-400 leading-normal mt-0.5">
+                                Ensure seatbelts are fastened for all {tripPlan.passengers || 1} passenger(s). Drive safely!
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Risk Assessment & Safety Message card */}
+                      <div className={`p-4 border rounded-xl shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3 relative overflow-hidden ${
+                        tripPlan.riskLevel === 'High'
+                          ? 'bg-rose-500/5 border-rose-500/20 text-rose-300'
+                          : tripPlan.riskLevel === 'Medium'
+                          ? 'bg-amber-500/5 border-amber-500/20 text-amber-300'
+                          : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300'
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          {tripPlan.riskLevel === 'High' ? (
+                            <ShieldAlert className="h-8 w-8 text-rose-400 mt-0.5 shrink-0" />
+                          ) : tripPlan.riskLevel === 'Medium' ? (
+                            <AlertTriangle className="h-8 w-8 text-amber-400 mt-0.5 shrink-0" />
+                          ) : (
+                            <ShieldCheck className="h-8 w-8 text-emerald-400 mt-0.5 shrink-0" />
+                          )}
+
+                          <div>
+                            <h5 className="font-extrabold text-white text-sm">
+                              {tripPlan.riskLevel === 'High' 
+                                ? 'High Hazard Level Detected' 
+                                : tripPlan.riskLevel === 'Medium' 
+                                ? 'Moderate Safety Caution Advised' 
+                                : 'Safe Journey Clearance Approved'}
+                            </h5>
+                            <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+                              {tripPlan.safetyMessage || 'All parameters comply with DriveSentra road safety standards.'}
+                            </p>
+                            
+                            {tripPlan.nightDriving && (
+                              <div className="mt-2 p-2 bg-slate-950/70 rounded-lg border border-slate-800 text-[10px] text-amber-300 flex items-center gap-1.5 max-w-lg">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                <span><b>Night Driving Mode:</b> Reduced visibility requires defensive driving and low headlight adjustment.</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="self-end md:self-auto flex flex-col items-end">
+                          <span className="text-[9px] text-slate-500 uppercase font-bold tracking-wider">Safety Score</span>
+                          <span className={`text-2xl font-black mt-0.5 font-mono ${
+                            tripPlan.riskLevel === 'High' ? 'text-rose-400' : tripPlan.riskLevel === 'Medium' ? 'text-amber-400' : 'text-emerald-400'
+                          }`}>
+                            {tripPlan.riskLevel === 'High' ? '42/100' : tripPlan.riskLevel === 'Medium' ? '74/100' : '98/100'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                      <Shield className="h-10 w-10 text-purple-400 mx-auto mb-2 animate-pulse" />
+                      <h4 className="text-sm font-bold text-white">No Safety Plan Calculated Yet</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Fill in your route details and vehicle range on the left, then click "Generate Itinerary & Safety Plan" to calculate real-time safety risk scoring, energy clearance, and rest breaks.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* 2. SAVED TRIPS HISTORY TAB (Preserving Trip Planner History) */}
+                {activeTab === 'history' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                      <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                        <Activity className="h-4 w-4 text-blue-400" />
+                        Saved Journey Records ({tripHistory.length})
+                      </h4>
+                      <span className="text-[10px] text-slate-500">Persistent across login & refresh</span>
+                    </div>
+
+                    {tripHistory.length === 0 ? (
+                      <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                        <Activity className="h-8 w-8 text-slate-600 mx-auto mb-2" />
+                        <p className="text-slate-400 text-xs font-semibold">No saved trips found</p>
+                        <p className="text-slate-500 text-[10px] mt-1">Trips you save will appear here for fast one-click resume.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {tripHistory.map((trip) => (
+                          <div
+                            key={trip._id}
+                            className="p-3.5 bg-slate-950/70 border border-slate-800 hover:border-purple-500/30 rounded-xl transition-all flex flex-col justify-between group"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
+                                  trip.riskLevel === 'High' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                                  trip.riskLevel === 'Medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                }`}>
+                                  {trip.riskLevel || 'Low'} Risk
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteHistoryTrip(trip._id, e)}
+                                  className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                  title="Delete saved trip"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="font-extrabold text-white text-xs truncate max-w-[120px]">{trip.source}</span>
+                                <ArrowRight className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                                <span className="font-extrabold text-purple-300 text-xs truncate max-w-[120px]">{trip.destination}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
+                                <span className="bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 text-slate-300 font-mono">
+                                  {trip.vehicleType}
+                                </span>
+                                <span>•</span>
+                                <span>{trip.distanceKm} km</span>
+                                <span>•</span>
+                                <span>{trip.tripDate || 'Upcoming'}</span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleLoadHistoryTrip(trip)}
+                              className="mt-3 w-full py-1.5 bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/20 hover:border-purple-500/40 text-purple-300 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Compass className="h-3.5 w-3.5" />
+                              Load & Resume Journey
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. ATTRACTIONS TAB */}
+                {activeTab === 'attractions' && (
+                  recommendations?.attractions ? (
+                    <RecommendationTabList
+                      tabKey="attractions"
+                      activeTab={activeTab}
+                      items={recommendations.attractions}
+                      type="attraction"
+                      emptyMessage="No matching attractions found."
+                      expanded={expandedState.attractions}
+                      onToggleExpand={() => setExpandedState(prev => ({ ...prev, attractions: !prev.attractions }))}
+                      selectedTimes={selectedTimes}
+                      defaultTime="04:00 PM"
+                      timeOptions={timeOptions}
+                      onSelectPlace={setSelectedPlace}
+                      onCardTimeChange={handleCardTimeChange}
+                      isPlaceInTimeline={isPlaceInTimeline}
+                      onRemovePlace={handleRemovePlace}
+                      checkCardFeasibility={checkCardFeasibility}
+                      onAddPlace={handleAddRecommendation}
+                      searchQuery={searchQuery}
+                    />
+                  ) : (
+                    <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                      <Sparkles className="h-8 w-8 text-yellow-400/60 mx-auto mb-2 animate-pulse" />
+                      <h4 className="text-sm font-bold text-white">Recommendations Not Loaded</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Click "Generate Itinerary & Safety Plan" to fetch curated attractions along your route.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* 4. RESTAURANTS TAB */}
+                {activeTab === 'restaurants' && (
+                  recommendations?.restaurants ? (
+                    <RecommendationTabList
+                      tabKey="restaurants"
+                      activeTab={activeTab}
+                      items={recommendations.restaurants}
+                      type="restaurant"
+                      emptyMessage="No matching restaurants found."
+                      expanded={expandedState.restaurants}
+                      onToggleExpand={() => setExpandedState(prev => ({ ...prev, restaurants: !prev.restaurants }))}
+                      selectedTimes={selectedTimes}
+                      defaultTime="01:30 PM"
+                      timeOptions={timeOptions}
+                      onSelectPlace={setSelectedPlace}
+                      onCardTimeChange={handleCardTimeChange}
+                      isPlaceInTimeline={isPlaceInTimeline}
+                      onRemovePlace={handleRemovePlace}
+                      checkCardFeasibility={checkCardFeasibility}
+                      onAddPlace={handleAddRecommendation}
+                      searchQuery={searchQuery}
+                    />
+                  ) : (
+                    <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                      <Sparkles className="h-8 w-8 text-yellow-400/60 mx-auto mb-2 animate-pulse" />
+                      <h4 className="text-sm font-bold text-white">Restaurants Not Loaded</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Click "Generate Itinerary & Safety Plan" to load recommended dining spots.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* 5. REST STOPS TAB */}
+                {activeTab === 'restStops' && (
+                  recommendations?.restStops ? (
+                    <RecommendationTabList
+                      tabKey="restStops"
+                      activeTab={activeTab}
+                      items={recommendations.restStops}
+                      type="restStop"
+                      emptyMessage="No matching rest stops found."
+                      expanded={expandedState.restStops}
+                      onToggleExpand={() => setExpandedState(prev => ({ ...prev, restStops: !prev.restStops }))}
+                      selectedTimes={selectedTimes}
+                      defaultTime="11:30 AM"
+                      timeOptions={timeOptions}
+                      onSelectPlace={setSelectedPlace}
+                      onCardTimeChange={handleCardTimeChange}
+                      isPlaceInTimeline={isPlaceInTimeline}
+                      onRemovePlace={handleRemovePlace}
+                      checkCardFeasibility={checkCardFeasibility}
+                      onAddPlace={handleAddRecommendation}
+                      searchQuery={searchQuery}
+                    />
+                  ) : (
+                    <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                      <Sparkles className="h-8 w-8 text-yellow-400/60 mx-auto mb-2 animate-pulse" />
+                      <h4 className="text-sm font-bold text-white">Rest Stops Not Loaded</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Click "Generate Itinerary & Safety Plan" to discover rest areas along your journey.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* 6. LODGING TAB */}
+                {activeTab === 'lodging' && (
+                  recommendations?.haltingPlaces ? (
+                    <RecommendationTabList
+                      tabKey="lodging"
+                      activeTab={activeTab}
+                      items={recommendations.haltingPlaces}
+                      type="lodging"
+                      emptyMessage="No matching lodging options found."
+                      expanded={expandedState.lodging}
+                      onToggleExpand={() => setExpandedState(prev => ({ ...prev, lodging: !prev.lodging }))}
+                      selectedTimes={selectedTimes}
+                      defaultTime="09:00 PM"
+                      timeOptions={timeOptions}
+                      onSelectPlace={setSelectedPlace}
+                      onCardTimeChange={handleCardTimeChange}
+                      isPlaceInTimeline={isPlaceInTimeline}
+                      onRemovePlace={handleRemovePlace}
+                      checkCardFeasibility={checkCardFeasibility}
+                      onAddPlace={handleAddRecommendation}
+                      searchQuery={searchQuery}
+                    />
+                  ) : (
+                    <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                      <Sparkles className="h-8 w-8 text-yellow-400/60 mx-auto mb-2 animate-pulse" />
+                      <h4 className="text-sm font-bold text-white">Lodging Not Loaded</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Click "Generate Itinerary & Safety Plan" to view overnight halting places.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* 7. REFUEL TAB */}
+                {activeTab === 'refuel' && (
+                  recommendations?.fuelChargingStops ? (
+                    <RecommendationTabList
+                      tabKey="refuel"
+                      activeTab={activeTab}
+                      items={recommendations.fuelChargingStops}
+                      type="refuel"
+                      emptyMessage="No matching stations found."
+                      expanded={expandedState.refuel}
+                      onToggleExpand={() => setExpandedState(prev => ({ ...prev, refuel: !prev.refuel }))}
+                      selectedTimes={selectedTimes}
+                      defaultTime="10:00 AM"
+                      timeOptions={timeOptions}
+                      onSelectPlace={setSelectedPlace}
+                      onCardTimeChange={handleCardTimeChange}
+                      isPlaceInTimeline={isPlaceInTimeline}
+                      onRemovePlace={handleRemovePlace}
+                      checkCardFeasibility={checkCardFeasibility}
+                      onAddPlace={handleAddRecommendation}
+                      searchQuery={searchQuery}
+                    />
+                  ) : (
+                    <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-xl">
+                      <Sparkles className="h-8 w-8 text-yellow-400/60 mx-auto mb-2 animate-pulse" />
+                      <h4 className="text-sm font-bold text-white">Stations Not Loaded</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Click "Generate Itinerary & Safety Plan" to view charging and fuel stations.
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {/* 8. CUSTOM ADD FORM TAB */}
                 {activeTab === 'custom' && (
                   <form onSubmit={handleAddCustomPlace} className="p-5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-4">
                     <h4 className="font-bold text-white text-sm flex items-center gap-2">
@@ -2806,7 +3560,7 @@ const JourneyCompanion = () => {
               <Compass className="h-12 w-12 text-slate-700 mb-4 animate-pulse" />
               <h3 className="text-lg font-bold text-slate-400 mb-1">No Active Journey Twin</h3>
               <p className="text-sm text-slate-500 max-w-sm">
-                Enter your start and target destination on the left, then click "Generate Itinerary" to load attractions and stops.
+                Enter your start and target destination on the left, then click "Generate Itinerary & Safety Plan" to load route safety metrics, energy stops, and attractions.
               </p>
             </div>
           )}

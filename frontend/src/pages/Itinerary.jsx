@@ -549,7 +549,7 @@ const Itinerary = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-xs">
           <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800">
             <span className="text-slate-400 block text-[10px] font-bold uppercase tracking-wider mb-1">Total Distance</span>
             <span className="text-lg font-bold text-white font-mono">{metrics.totalDistanceKm} km</span>
@@ -595,7 +595,7 @@ const Itinerary = () => {
       )}
 
       {/* Dynamic Timeline with Contextual Insertion at ANY Position */}
-      <div className="relative pl-2 md:pl-10 space-y-2">
+      <div className="relative pl-0 sm:pl-4 md:pl-10 space-y-2">
         {itinerary.timeline.map((event, idx) => {
           const isDeparture = idx === 0 || event.purpose === 'Departure';
           const isLodging = event.purpose === 'Resort Check-in' || event.purpose === 'Overnight Stay' || event.isOvernight;
@@ -606,11 +606,11 @@ const Itinerary = () => {
             <Fragment key={event.id || `stop_${idx}`}>
               {/* Day divider header */}
               {isNewDay && (
-                <div className="py-4 my-2 flex items-center gap-3">
+                <div className="py-3 sm:py-4 my-2 flex items-center gap-2 sm:gap-3">
                   <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-purple-500/40 to-transparent"></div>
-                  <div className="px-4 py-1.5 bg-gradient-to-r from-purple-950/80 to-blue-950/80 border border-purple-500/30 rounded-xl text-purple-200 text-xs font-extrabold uppercase tracking-widest flex items-center gap-2 shadow-lg">
-                    <Calendar className="h-4 w-4 text-purple-400" />
-                    Day {event.day || 1} {event.day === 1 ? '• Onward Journey & Destination Activities' : `• Leisure & Return Journey to ${itinerary.source}`}
+                  <div className="px-3 sm:px-4 py-1.5 bg-gradient-to-r from-purple-950/80 to-blue-950/80 border border-purple-500/30 rounded-xl text-purple-200 text-xs font-extrabold uppercase tracking-widest flex items-center gap-2 shadow-lg">
+                    <Calendar className="h-4 w-4 text-purple-400 shrink-0" />
+                    <span>Day {event.day || 1} {event.day === 1 ? '• Onward Journey' : `• Return to ${itinerary.source}`}</span>
                   </div>
                   <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-purple-500/40 to-transparent"></div>
                 </div>
@@ -618,12 +618,12 @@ const Itinerary = () => {
 
               {/* CONTEXTUAL INSERTION CONTROL: Between previous stop and current stop */}
               {idx > 0 && (
-                <div className="relative pl-8 ml-3 py-1 group/insert">
+                <div className="relative pl-5 sm:pl-8 ml-1.5 sm:ml-3 py-1 group/insert">
                   <div className="border-t border-dashed border-slate-800 group-hover/insert:border-purple-500/40 transition-colors my-1 relative flex items-center justify-center">
                     <button
                       type="button"
                       onClick={() => handleOpenInsertModal(idx)}
-                      className="opacity-40 group-hover/insert:opacity-100 transition-all px-3 py-1 bg-slate-900/90 hover:bg-purple-900/60 border border-slate-700 hover:border-purple-500/50 text-slate-300 hover:text-purple-200 rounded-full text-[11px] font-bold flex items-center gap-1.5 shadow-md cursor-pointer hover:scale-105"
+                      className="opacity-60 sm:opacity-40 group-hover/insert:opacity-100 transition-all px-3 py-1 bg-slate-900/90 hover:bg-purple-900/60 border border-slate-700 hover:border-purple-500/50 text-slate-300 hover:text-purple-200 rounded-full text-[11px] font-bold flex items-center gap-1.5 shadow-md cursor-pointer hover:scale-105 min-h-[36px]"
                       title={`Insert stop between ${itinerary.timeline[idx - 1]?.place} and ${event.place}`}
                     >
                       <Plus className="h-3 w-3 text-purple-400" />
@@ -635,12 +635,12 @@ const Itinerary = () => {
               
               {/* Travel Time Offset Arrow Indicator */}
               {idx > 0 && event.travelTimeFromPrevious && event.travelTimeFromPrevious !== '0m' && (
-                <div className="flex items-center gap-3 pl-8 py-2 border-l-2 border-dashed border-slate-800 ml-3">
-                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-slate-900 border border-slate-800 text-purple-400 animate-pulse">
+                <div className="flex items-center gap-2 sm:gap-3 pl-5 sm:pl-8 py-2 border-l-2 border-dashed border-slate-800 ml-1.5 sm:ml-3">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-slate-900 border border-slate-800 text-purple-400 animate-pulse shrink-0">
                     <Navigation className="h-3 w-3 rotate-90" />
                   </div>
-                  <span className="text-xs font-semibold text-slate-500 bg-slate-900/60 border border-slate-800 px-2 py-0.5 rounded-lg flex items-center gap-1.5">
-                    Transit Drive: <strong className="text-slate-300 font-semibold">{event.travelTimeFromPrevious}</strong>
+                  <span className="text-xs font-semibold text-slate-500 bg-slate-900/60 border border-slate-800 px-2 py-0.5 rounded-lg flex flex-wrap items-center gap-1.5">
+                    <span>Transit Drive: <strong className="text-slate-300 font-semibold">{event.travelTimeFromPrevious}</strong></span>
                     {event.distanceFromPrevious > 0 && (
                       <span className="text-[10px] text-slate-500">({event.distanceFromPrevious} km)</span>
                     )}
@@ -649,7 +649,7 @@ const Itinerary = () => {
               )}
 
               {/* Event Card Container */}
-              <div className="relative pl-8 border-l-2 border-slate-800 ml-3 py-2">
+              <div className="relative pl-5 sm:pl-8 border-l-2 border-slate-800 ml-1.5 sm:ml-3 py-2">
                 
                 {/* Timeline Bullet Badge */}
                 <div className={`absolute -left-[7px] top-4 h-3 w-3 rounded-full border-2 bg-slate-950 z-10 ${
@@ -956,13 +956,13 @@ const Itinerary = () => {
                 <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block mb-1.5">
                   Planned Visit Duration
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {[15, 30, 45, 60, 90, 120].map(dur => (
                     <button
                       key={dur}
                       type="button"
                       onClick={() => setInsertModal(prev => ({ ...prev, duration: dur }))}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold font-mono cursor-pointer transition-all ${
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold font-mono cursor-pointer transition-all min-h-[36px] ${
                         insertModal.duration === dur
                           ? 'bg-purple-500 text-white border-purple-400 shadow-md'
                           : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
@@ -987,7 +987,7 @@ const Itinerary = () => {
                 </label>
 
                 {insertModal.isPinned && (
-                  <div className="pt-2 flex items-center gap-3">
+                  <div className="pt-2 flex flex-wrap items-center gap-2 sm:gap-3">
                     <span className="text-xs text-slate-400">Fixed Time:</span>
                     <select
                       value={insertModal.pinnedTime}
@@ -1008,7 +1008,7 @@ const Itinerary = () => {
               <button
                 type="button"
                 onClick={() => setInsertModal(prev => ({ ...prev, isOpen: false }))}
-                className="px-4 py-2 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                className="px-4 py-2 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[40px]"
               >
                 Cancel
               </button>
@@ -1016,7 +1016,7 @@ const Itinerary = () => {
                 type="button"
                 onClick={handleConfirmInsertStop}
                 disabled={!insertModal.place.trim()}
-                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-lg hover:shadow-purple-500/20 cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-lg hover:shadow-purple-500/20 cursor-pointer flex items-center gap-1.5 min-h-[40px]"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Insert Stop & Recalculate
@@ -1027,16 +1027,16 @@ const Itinerary = () => {
       )}
 
       {/* Footer Nav */}
-      <div className="flex justify-between items-center pt-8">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 sm:pt-8">
         <button
           onClick={() => navigate('/journey')}
-          className="px-4 py-2 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-white rounded-lg text-sm font-bold transition-all cursor-pointer"
+          className="w-full sm:w-auto px-4 py-2.5 border border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer text-center min-h-[44px]"
         >
           Modify Preferences
         </button>
         <button
           onClick={() => navigate('/agents')}
-          className="px-4 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-lg text-sm font-bold transition-all cursor-pointer"
+          className="w-full sm:w-auto px-4 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer text-center min-h-[44px]"
         >
           Open AI Agent Panel
         </button>
